@@ -1,0 +1,9 @@
+{
+  "all": true,
+  "include": ["src/**", "scripts/**"],
+  "reporter": ["text", "html"],
+  "check-coverage": true,
+  "lines": 85,
+  "statements": 85,
+  "functions": 85
+}
