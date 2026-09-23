@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: yper-api
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: yarn install --frozen-lockfile
+    startCommand: yarn start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20.19.0"
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB
+        value: yper
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false

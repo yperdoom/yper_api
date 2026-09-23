@@ -1,0 +1,35 @@
+{
+  "name": "yper-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "migrate": "node scripts/migrate.mjs",
+    "test": "node test/cors.test.mjs && node test/smoke.test.mjs",
+    "test:cors": "node test/cors.test.mjs",
+    "test:contract": "node test/contract.test.mjs",
+    "test:migrate": "node test/migrate.test.mjs",
+    "test:boot": "node test/boot.test.mjs",
+    "test:all": "node test/cors.test.mjs && node test/smoke.test.mjs && node test/contract.test.mjs && node test/boot.test.mjs && node test/migrate.test.mjs",
+    "test:coverage": "c8 yarn test:all"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.3.0",
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^17.2.3",
+    "fastify": "^5.12.5",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.15.0"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "devDependencies": {
+    "c8": "^12.0.0",
+    "mongodb-memory-server": "^11.3.0",
+    "pino-pretty": "^13.1.3"
+  }
+}
