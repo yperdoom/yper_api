@@ -16,6 +16,13 @@ export default Object.freeze({
   VALIDATION_FAILED: 'Dados inválidos',
   INVALID_VALUE: 'Valor inválido para {field}',
   DUPLICATE_VALUE: 'Já existe um registro com esse valor',
+  FIELD_REQUIRED: '{field} é obrigatório',
+  FIELD_ENUM: '{field} tem um valor inválido',
+  FIELD_MIN: '{field} deve ser maior ou igual a {min}',
+  FIELD_MAX: '{field} deve ser menor ou igual a {max}',
+  FIELD_MINLENGTH: '{field} deve ter pelo menos {min} caracteres',
+  FIELD_MAXLENGTH: '{field} deve ter no máximo {max} caracteres',
+  FIELD_INVALID: '{field} é inválido',
 
   SETUP_ALREADY_DONE: 'A configuração inicial já foi feita',
   EMAIL_PASSWORD_REQUIRED: 'Informe e-mail e senha',

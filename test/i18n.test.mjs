@@ -165,6 +165,16 @@ const invalid = await call('POST', '/movix/suppliers', { token: adminToken, body
 check('validacao -> 400 VALIDATION_FAILED', invalid.status === 400 && invalid.body.code === 'VALIDATION_FAILED' && invalid.body.error === pt.VALIDATION_FAILED, invalid);
 check('validacao traz fields', !!invalid.body.fields?.name, invalid.body);
 
+const badExercise = await call('POST', '/yper/exercises', { token: adminToken, body: { muscleGroup: 'invalid-group' } });
+check('exercicio invalido -> 400 VALIDATION_FAILED', badExercise.status === 400 && badExercise.body.code === 'VALIDATION_FAILED', badExercise);
+check('campo required traduzido pt-BR', badExercise.body.fields?.name === pt.FIELD_REQUIRED?.replace('{field}', 'name'), badExercise.body.fields);
+check('campo enum traduzido pt-BR', badExercise.body.fields?.muscleGroup === pt.FIELD_ENUM?.replace('{field}', 'muscleGroup'), badExercise.body.fields);
+
+const badExerciseEn = await call('POST', '/yper/exercises', { token: adminToken, lang: 'en-US', body: { muscleGroup: 'invalid-group' } });
+check('campo required traduzido en-US', badExerciseEn.body.fields?.name === en.FIELD_REQUIRED?.replace('{field}', 'name'), badExerciseEn.body.fields);
+check('campo enum traduzido en-US', badExerciseEn.body.fields?.muscleGroup === en.FIELD_ENUM?.replace('{field}', 'muscleGroup'), badExerciseEn.body.fields);
+check('mensagens diferem entre locales', pt.FIELD_REQUIRED !== undefined && pt.FIELD_REQUIRED !== en.FIELD_REQUIRED, { pt: pt.FIELD_REQUIRED, en: en.FIELD_REQUIRED });
+
 const noToken = await call('GET', '/yper/exercises');
 check('sem token -> 401 UNAUTHORIZED', noToken.status === 401 && noToken.body.code === 'UNAUTHORIZED', noToken);
 
