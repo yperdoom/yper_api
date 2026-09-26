@@ -8,7 +8,7 @@ async function list() {
   const [customers, orderStats] = await Promise.all([
     Customer.find().sort({ name: 1 }).lean(),
     Order.aggregate([
-      { $match: { status: { $ne: 'cancelled' } } },
+      { $match: { status: { $ne: 'cancelled' }, customer: { $ne: null } } },
       {
         $group: {
           _id: '$customer',
