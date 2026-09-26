@@ -28,6 +28,20 @@ yarn dev                 # http://localhost:4000
 
 ---
 
+## Banco local (Docker)
+
+```bash
+yarn db:up      # sobe um mongo:7 em localhost:27017 (docker compose)
+yarn db:logs    # acompanha o log
+yarn db:down    # derruba o container
+```
+
+Aponte o `.env` para `MONGODB_URI=mongodb://localhost:27017` (já é o padrão do `.env.example`). O primeiro acesso
+cria o admin pela tela de setup, igual em produção. Credenciais de produção ficam só nas variáveis de ambiente
+do Render — nunca neste banco local.
+
+---
+
 ## Migrando a base que já existe
 
 A base do helake de antes da separação continua servindo, mas precisa de dois cuidados.
