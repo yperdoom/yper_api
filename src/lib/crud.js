@@ -55,7 +55,7 @@ export function crudRoutes(Model, options = {}) {
       const doc = await withPopulate(
         Model.findOne({ _id: request.params.id, ...scopeOf(request) })
       ).lean();
-      if (!doc) throw httpError(404, 'Not found');
+      if (!doc) throw httpError(404, 'NOT_FOUND');
       return { [single]: doc };
     });
 
@@ -68,13 +68,13 @@ export function crudRoutes(Model, options = {}) {
         payload,
         { new: true, runValidators: true }
       );
-      if (!doc) throw httpError(404, 'Not found');
+      if (!doc) throw httpError(404, 'NOT_FOUND');
       return { [single]: doc };
     });
 
     fastify.delete('/:id', guard(beforeDelete), async (request) => {
       const doc = await Model.findOneAndDelete({ _id: request.params.id, ...scopeOf(request) });
-      if (!doc) throw httpError(404, 'Not found');
+      if (!doc) throw httpError(404, 'NOT_FOUND');
       return { success: true };
     });
   };

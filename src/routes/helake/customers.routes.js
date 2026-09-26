@@ -39,7 +39,7 @@ async function list() {
 async function beforeDelete(request) {
   const linked = await Order.countDocuments({ customer: request.params.id });
   if (linked > 0) {
-    throw httpError(409, `Customer has ${linked} order(s) and cannot be deleted`);
+    throw httpError(409, 'CUSTOMER_HAS_ORDERS', { count: linked });
   }
 }
 

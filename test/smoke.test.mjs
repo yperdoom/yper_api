@@ -51,10 +51,10 @@ check('email normalizado para minusculo', setup.body.user?.email === 'pedro@test
 check('usuario nasce com os 3 apps', setup.body.user?.apps?.length === 3, setup.body.user);
 
 const setupAgain = await call('POST', '/auth/setup', { email: 'x@y.z', password: 'a' });
-check('segundo setup bloqueado', setupAgain.status === 403, setupAgain);
+check('segundo setup bloqueado', setupAgain.status === 403 && setupAgain.body.code === 'SETUP_ALREADY_DONE', setupAgain);
 
 const badLogin = await call('POST', '/auth/login', { email: 'pedro@test.com', password: 'errada' });
-check('senha errada -> 401', badLogin.status === 401, badLogin);
+check('senha errada -> 401', badLogin.status === 401 && badLogin.body.code === 'INVALID_CREDENTIALS', badLogin);
 
 const login = await call('POST', '/auth/login', { email: 'pedro@test.com', password: 'secret123', app: 'helake' });
 check('login ok', login.status === 200 && !!login.body.token, login);
@@ -67,7 +67,7 @@ const restricted = await call('POST', '/auth/users', { email: 'so-movix@test.com
 check('cria usuario restrito a um app', restricted.status === 201 && restricted.body.user.apps.length === 1, restricted);
 
 const restrictedLogin = await call('POST', '/auth/login', { email: 'so-movix@test.com', password: 'abc12345', app: 'helake' });
-check('login em app sem acesso -> 403', restrictedLogin.status === 403, restrictedLogin);
+check('login em app sem acesso -> 403', restrictedLogin.status === 403 && restrictedLogin.body.code === 'APP_FORBIDDEN', restrictedLogin);
 
 // ---------------- helake ----------------
 console.log('\n[helake]');
@@ -80,7 +80,7 @@ check('cria ingrediente', flour.status === 201, flour);
 const flourId = flour.body.ingredient?._id;
 
 const badIngredient = await call('POST', '/helake/ingredients', { name: 'Sem unidade', costPerUnit: 1 });
-check('ingrediente sem unidade -> 400', badIngredient.status === 400, badIngredient);
+check('ingrediente sem unidade -> 400', badIngredient.status === 400 && badIngredient.body.code === 'VALIDATION_FAILED', badIngredient);
 
 const recipe = await call('POST', '/helake/recipes', {
   name: 'Bolo', category: 'Cakes', yield: 8, yieldUnit: 'slices', laborCost: 10, sellingPrice: 100,
@@ -119,10 +119,10 @@ const afterCancel = await call('GET', '/helake/ingredients');
 check('cancelamento devolve estoque para 10', afterCancel.body.ingredients?.[0]?.currentStock === 10, afterCancel.body.ingredients?.[0]);
 
 const delIngredient = await call('DELETE', `/helake/ingredients/${flourId}`);
-check('ingrediente usado em receita -> 409', delIngredient.status === 409, delIngredient);
+check('ingrediente usado em receita -> 409', delIngredient.status === 409 && delIngredient.body.code === 'INGREDIENT_IN_USE', delIngredient);
 
 const delCustomer = await call('DELETE', `/helake/customers/${customerId}`);
-check('cliente com pedido -> 409', delCustomer.status === 409, delCustomer);
+check('cliente com pedido -> 409', delCustomer.status === 409 && delCustomer.body.code === 'CUSTOMER_HAS_ORDERS', delCustomer);
 
 const customersList = await call('GET', '/helake/customers');
 check('cliente traz stats (cancelado nao conta)', customersList.body.customers?.[0]?.totalOrders === 0, customersList.body.customers?.[0]);
@@ -157,7 +157,7 @@ check('sku normalizado para maiusculo', product.body.product?.sku === 'CX20', pr
 const productId = product.body.product?._id;
 
 const dupSku = await call('POST', '/movix/products', { name: 'Outra', sku: 'CX20', unit: 'un' });
-check('sku duplicado -> 409', dupSku.status === 409, dupSku);
+check('sku duplicado -> 409', dupSku.status === 409 && dupSku.body.code === 'DUPLICATE_VALUE', dupSku);
 
 const noSku1 = await call('POST', '/movix/products', { name: 'Sem sku A', unit: 'un' });
 const noSku2 = await call('POST', '/movix/products', { name: 'Sem sku B', unit: 'un' });
@@ -174,7 +174,7 @@ const movAdj = await call('POST', '/movix/movements', { product: productId, type
 check('ajuste para 65 gera delta -5', movAdj.body.movement?.delta === -5 && movAdj.body.movement?.balanceAfter === 65, movAdj);
 
 const immutable = await call('DELETE', `/movix/movements/${movIn.body.movement._id}`);
-check('movimento e imutavel -> 405', immutable.status === 405, immutable);
+check('movimento e imutavel -> 405', immutable.status === 405 && immutable.body.code === 'MOVEMENTS_IMMUTABLE', immutable);
 
 const productsList = await call('GET', '/movix/products');
 const box = productsList.body.products?.find((p) => p._id === productId);
@@ -182,7 +182,7 @@ check('produto abaixo do minimo sinalizado', box?.belowMinimum === true && box?.
 check('valor de estoque calculado', box?.stockValue === 130, box);
 
 const delProduct = await call('DELETE', `/movix/products/${productId}`);
-check('produto com historico -> 409', delProduct.status === 409, delProduct);
+check('produto com historico -> 409', delProduct.status === 409 && delProduct.body.code === 'PRODUCT_HAS_MOVEMENTS', delProduct);
 
 const invoice = await call('POST', '/movix/invoices', {
   number: '1234', series: '1', type: 'in', supplier: supplierId,
@@ -204,10 +204,10 @@ const afterConfirm = await call('GET', '/movix/products');
 check('nota de entrada soma no estoque (65 -> 75)', afterConfirm.body.products?.find((p) => p._id === productId)?.currentStock === 75, afterConfirm.body.products?.[0]);
 
 const reconfirm = await call('POST', `/movix/invoices/${invoiceId}/confirm`);
-check('reconfirmar -> 409', reconfirm.status === 409, reconfirm);
+check('reconfirmar -> 409', reconfirm.status === 409 && reconfirm.body.code === 'INVOICE_NOT_CONFIRMABLE', reconfirm);
 
 const editConfirmed = await call('PUT', `/movix/invoices/${invoiceId}`, { notes: 'nope' });
-check('nota confirmada nao pode ser editada -> 409', editConfirmed.status === 409, editConfirmed);
+check('nota confirmada nao pode ser editada -> 409', editConfirmed.status === 409 && editConfirmed.body.code === 'INVOICE_NOT_DRAFT', editConfirmed);
 
 const cancelInvoice = await call('POST', `/movix/invoices/${invoiceId}/cancel`);
 check('cancela nota', cancelInvoice.status === 200, cancelInvoice);
@@ -285,7 +285,7 @@ token = otherLogin.body.token;
 const otherExercises = await call('GET', '/yper/exercises');
 check('outro usuario nao ve os exercicios do primeiro', otherExercises.body.exercises?.length === 0, otherExercises.body.exercises?.length);
 const stealAttempt = await call('GET', `/yper/exercises/${exerciseId}`);
-check('outro usuario nao acessa exercicio por id -> 404', stealAttempt.status === 404, stealAttempt);
+check('outro usuario nao acessa exercicio por id -> 404', stealAttempt.status === 404 && stealAttempt.body.code === 'NOT_FOUND', stealAttempt);
 const sharedProducts = await call('GET', '/movix/products');
 check('dados do movix sao compartilhados (nao sao por usuario)', sharedProducts.body.products?.length === 3, sharedProducts.body.products?.length);
 token = mainToken;

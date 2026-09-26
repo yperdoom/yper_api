@@ -23,7 +23,7 @@ export function sanitizeApps(apps) {
 /** Valida o tamanho e devolve o hash. */
 export async function hashPassword(password) {
   if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
-    throw httpError(400, `Password must have at least ${MIN_PASSWORD_LENGTH} characters`);
+    throw httpError(400, 'PASSWORD_TOO_SHORT', { min: MIN_PASSWORD_LENGTH });
   }
   return bcrypt.hash(password, 10);
 }

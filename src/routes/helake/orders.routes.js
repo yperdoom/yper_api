@@ -40,13 +40,13 @@ export default async function orderRoutes(fastify) {
       .populate({ path: 'recipe', populate: { path: 'ingredients.ingredient', select: 'name unit' } })
       .lean();
 
-    if (!order) throw httpError(404, 'Not found');
+    if (!order) throw httpError(404, 'NOT_FOUND');
     return { order };
   });
 
   fastify.put('/:id', async (request) => {
     const current = await Order.findById(request.params.id).populate('recipe');
-    if (!current) throw httpError(404, 'Not found');
+    if (!current) throw httpError(404, 'NOT_FOUND');
 
     const newStatus = request.body?.status;
 
@@ -71,7 +71,7 @@ export default async function orderRoutes(fastify) {
 
   fastify.delete('/:id', async (request) => {
     const order = await Order.findById(request.params.id).populate('recipe');
-    if (!order) throw httpError(404, 'Not found');
+    if (!order) throw httpError(404, 'NOT_FOUND');
 
     // Pedido em producao ja debitou estoque: devolve antes de apagar.
     if (order.status === 'in_production') {

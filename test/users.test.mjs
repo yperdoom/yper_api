@@ -73,10 +73,10 @@ console.log('\n[inativo]');
 await users().updateOne({ email: 'func@test.com' }, { $set: { active: false } });
 
 const inactiveLogin = await call('POST', '/auth/login', { email: 'func@test.com', password: 'abc12345' });
-check('login de inativo -> 403', inactiveLogin.status === 403, inactiveLogin);
+check('login de inativo -> 403', inactiveLogin.status === 403 && inactiveLogin.body.code === 'USER_INACTIVE', inactiveLogin);
 
 const inactiveMe = await call('GET', '/auth/me', null, employeeToken);
-check('token antigo de inativo perde acesso na hora -> 401', inactiveMe.status === 401, inactiveMe);
+check('token antigo de inativo perde acesso na hora -> 401', inactiveMe.status === 401 && inactiveMe.body.code === 'UNAUTHORIZED', inactiveMe);
 
 const inactiveApp = await call('GET', '/yper/exercises', null, employeeToken);
 check('inativo tambem barrado nas rotas dos apps -> 401', inactiveApp.status === 401, inactiveApp);
@@ -114,7 +114,7 @@ for (const [label, token] of [['employee', empToken], ['manager', manToken]]) {
     await call('PUT', `/auth/users/${empId}/password`, { password: 'abc12345' }, token),
     await call('DELETE', `/auth/users/${empId}`, null, token),
   ];
-  check(`${label} recebe 403 em todas as rotas de usuarios`, attempts.every((r) => r.status === 403), attempts.map((r) => r.status));
+  check(`${label} recebe 403 em todas as rotas de usuarios`, attempts.every((r) => r.status === 403 && r.body.code === 'ADMIN_ONLY'), attempts.map((r) => r.status));
 }
 
 console.log('\n[crud de usuarios: admin]');
@@ -133,13 +133,13 @@ check('admin novo sempre tem os 3 apps', createdAdmin.status === 201 && createdA
 const admin2Id = createdAdmin.body.user?.id;
 
 const dupEmail = await call('POST', '/auth/users', { email: 'gerente@test.com', password: 'abc12345' }, adminToken);
-check('email duplicado -> 409', dupEmail.status === 409, dupEmail);
+check('email duplicado -> 409', dupEmail.status === 409 && dupEmail.body.code === 'DUPLICATE_VALUE', dupEmail);
 const shortPass = await call('POST', '/auth/users', { email: 'curta@test.com', password: '12345' }, adminToken);
-check('senha com menos de 6 -> 400', shortPass.status === 400, shortPass);
+check('senha com menos de 6 -> 400', shortPass.status === 400 && shortPass.body.code === 'PASSWORD_TOO_SHORT', shortPass);
 const badRole = await call('POST', '/auth/users', { email: 'role@test.com', password: 'abc12345', role: 'owner' }, adminToken);
-check('role invalido -> 400', badRole.status === 400, badRole);
+check('role invalido -> 400', badRole.status === 400 && badRole.body.code === 'VALIDATION_FAILED', badRole);
 const noEmail = await call('POST', '/auth/users', { password: 'abc12345' }, adminToken);
-check('sem email -> 400', noEmail.status === 400, noEmail);
+check('sem email -> 400', noEmail.status === 400 && noEmail.body.code === 'EMAIL_PASSWORD_REQUIRED', noEmail);
 
 const updated = await call('PUT', `/auth/users/${manId}`, { name: 'Gerente 2', role: 'employee', apps: ['helake', 'yper'], active: false, password: 'hackeada' }, adminToken);
 check('admin edita nome, role, apps e active', updated.status === 200 && updated.body.user?.name === 'Gerente 2' && updated.body.user?.role === 'employee' && updated.body.user?.apps?.join() === 'helake,yper' && updated.body.user?.active === false, updated.body);
@@ -153,7 +153,7 @@ check('PUT com role invalido -> 400', putBadRole.status === 400, putBadRole);
 const putDupEmail = await call('PUT', `/auth/users/${manId}`, { email: 'emp@test.com' }, adminToken);
 check('PUT com email de outro -> 409', putDupEmail.status === 409, putDupEmail);
 const putMissing = await call('PUT', '/auth/users/000000000000000000000000', { name: 'x' }, adminToken);
-check('PUT em id inexistente -> 404', putMissing.status === 404, putMissing);
+check('PUT em id inexistente -> 404', putMissing.status === 404 && putMissing.body.code === 'NOT_FOUND', putMissing);
 
 const passShort = await call('PUT', `/auth/users/${manId}/password`, { password: '123' }, adminToken);
 check('redefinir senha curta -> 400', passShort.status === 400, passShort);
@@ -167,11 +167,11 @@ check('redefinir senha de id inexistente -> 404', passMissing.status === 404, pa
 console.log('\n[crud de usuarios: protecoes]');
 const adminId = setup.body.user?.id;
 const selfDeactivate = await call('PUT', `/auth/users/${adminId}`, { active: false }, adminToken);
-check('admin nao desativa a si mesmo -> 409', selfDeactivate.status === 409 && !!selfDeactivate.body.error, selfDeactivate);
+check('admin nao desativa a si mesmo -> 409', selfDeactivate.status === 409 && selfDeactivate.body.code === 'SELF_DEMOTE', selfDeactivate);
 const selfDemote = await call('PUT', `/auth/users/${adminId}`, { role: 'manager' }, adminToken);
-check('admin nao rebaixa a si mesmo -> 409', selfDemote.status === 409 && !!selfDemote.body.error, selfDemote);
+check('admin nao rebaixa a si mesmo -> 409', selfDemote.status === 409 && selfDemote.body.code === 'SELF_DEMOTE', selfDemote);
 const selfDelete = await call('DELETE', `/auth/users/${adminId}`, null, adminToken);
-check('admin nao remove a si mesmo -> 409', selfDelete.status === 409 && !!selfDelete.body.error, selfDelete);
+check('admin nao remove a si mesmo -> 409', selfDelete.status === 409 && selfDelete.body.code === 'SELF_DELETE', selfDelete);
 const selfRename = await call('PUT', `/auth/users/${adminId}`, { name: 'Admin Renomeado', role: 'admin', active: true }, adminToken);
 check('admin edita o proprio nome', selfRename.status === 200 && selfRename.body.user?.name === 'Admin Renomeado', selfRename);
 
@@ -182,14 +182,14 @@ check('segundo admin gerencia usuarios', admin2Before.status === 200, admin2Befo
 const demote = await call('PUT', `/auth/users/${admin2Id}`, { role: 'employee' }, adminToken);
 check('admin rebaixa outro admin', demote.status === 200 && demote.body.user?.role === 'employee', demote.body);
 const admin2After = await call('GET', '/auth/users', null, admin2Token);
-check('rebaixado perde acesso na hora (role vem do banco) -> 403', admin2After.status === 403, admin2After);
+check('rebaixado perde acesso na hora (role vem do banco) -> 403', admin2After.status === 403 && admin2After.body.code === 'ADMIN_ONLY', admin2After);
 const activeAdmins = await users().countDocuments({ role: 'admin', active: true });
 check('continua havendo admin ativo', activeAdmins === 1, activeAdmins);
 
 const del = await call('DELETE', `/auth/users/${manId}`, null, adminToken);
 check('admin remove usuario', del.status === 200, del);
 const delLogin = await call('POST', '/auth/login', { email: 'gerente@test.com', password: 'nova1234' });
-check('removido nao loga', delLogin.status === 401, delLogin);
+check('removido nao loga', delLogin.status === 401 && delLogin.body.code === 'INVALID_CREDENTIALS', delLogin);
 const delMissing = await call('DELETE', `/auth/users/${manId}`, null, adminToken);
 check('remover id inexistente -> 404', delMissing.status === 404, delMissing);
 
@@ -198,11 +198,11 @@ console.log('\n[trocar a propria senha]');
 const noToken = await call('PUT', '/auth/me/password', { currentPassword: 'abc12345', newPassword: 'nova1234' });
 check('sem token -> 401', noToken.status === 401, noToken);
 const wrongCurrent = await call('PUT', '/auth/me/password', { currentPassword: 'errada', newPassword: 'nova1234' }, empToken);
-check('senha atual errada -> 400', wrongCurrent.status === 400, wrongCurrent);
+check('senha atual errada -> 400', wrongCurrent.status === 400 && wrongCurrent.body.code === 'CURRENT_PASSWORD_INCORRECT', wrongCurrent);
 const shortNew = await call('PUT', '/auth/me/password', { currentPassword: 'abc12345', newPassword: '123' }, empToken);
-check('senha nova curta -> 400', shortNew.status === 400, shortNew);
+check('senha nova curta -> 400', shortNew.status === 400 && shortNew.body.code === 'PASSWORD_TOO_SHORT', shortNew);
 const missingCurrent = await call('PUT', '/auth/me/password', { newPassword: 'nova1234' }, empToken);
-check('sem senha atual -> 400', missingCurrent.status === 400, missingCurrent);
+check('sem senha atual -> 400', missingCurrent.status === 400 && missingCurrent.body.code === 'CURRENT_PASSWORD_REQUIRED', missingCurrent);
 const changed = await call('PUT', '/auth/me/password', { currentPassword: 'abc12345', newPassword: 'nova1234' }, empToken);
 check('employee troca a propria senha', changed.status === 200 && noPassword([changed.body.user]), changed);
 const oldLogin = await call('POST', '/auth/login', { email: 'emp@test.com', password: 'abc12345' });
@@ -217,7 +217,7 @@ const beforeRevoke = await call('GET', '/movix/products', null, empNow);
 check('employee com movix acessa movix', beforeRevoke.status === 200, beforeRevoke);
 await call('PUT', `/auth/users/${empId}`, { apps: ['yper'] }, adminToken);
 const afterRevoke = await call('GET', '/movix/products', null, empNow);
-check('app removido bloqueia o token atual', afterRevoke.status === 403, afterRevoke);
+check('app removido bloqueia o token atual', afterRevoke.status === 403 && afterRevoke.body.code === 'APP_FORBIDDEN', afterRevoke);
 
 await app.close();
 await mongoose.disconnect();

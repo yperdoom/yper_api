@@ -20,9 +20,9 @@ async function list(request) {
 /** So rascunho pode ser editado ou apagado; o resto e historico fiscal. */
 async function draftOnly(request) {
   const invoice = await Invoice.findById(request.params.id);
-  if (!invoice) throw httpError(404, 'Not found');
+  if (!invoice) throw httpError(404, 'NOT_FOUND');
   if (invoice.status !== 'draft') {
-    throw httpError(409, `Invoice is ${invoice.status}; cancel it instead`);
+    throw httpError(409, 'INVOICE_NOT_DRAFT', { status: invoice.status });
   }
 }
 
@@ -43,12 +43,12 @@ export default async function invoiceRoutes(fastify) {
    */
   fastify.post('/:id/confirm', async (request) => {
     const invoice = await Invoice.findById(request.params.id);
-    if (!invoice) throw httpError(404, 'Not found');
+    if (!invoice) throw httpError(404, 'NOT_FOUND');
     if (invoice.status !== 'draft') {
-      throw httpError(409, `Invoice is ${invoice.status} and cannot be confirmed`);
+      throw httpError(409, 'INVOICE_NOT_CONFIRMABLE', { status: invoice.status });
     }
     if (invoice.items.length === 0) {
-      throw httpError(400, 'Invoice has no items');
+      throw httpError(400, 'INVOICE_NO_ITEMS');
     }
 
     for (const item of invoice.items) {
@@ -74,8 +74,8 @@ export default async function invoiceRoutes(fastify) {
   /** Cancela a nota e estorna os movimentos que ela tinha gerado. */
   fastify.post('/:id/cancel', async (request) => {
     const invoice = await Invoice.findById(request.params.id);
-    if (!invoice) throw httpError(404, 'Not found');
-    if (invoice.status === 'cancelled') throw httpError(409, 'Invoice already cancelled');
+    if (!invoice) throw httpError(404, 'NOT_FOUND');
+    if (invoice.status === 'cancelled') throw httpError(409, 'INVOICE_ALREADY_CANCELLED');
 
     if (invoice.status === 'confirmed') {
       const movements = await StockMovement.find({ invoice: invoice._id });

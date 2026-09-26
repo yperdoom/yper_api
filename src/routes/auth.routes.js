@@ -13,10 +13,10 @@ export default async function authRoutes(fastify) {
   /** Cria o primeiro usuario. So funciona enquanto a base estiver vazia. */
   fastify.post('/setup', async (request, reply) => {
     const count = await User.estimatedDocumentCount();
-    if (count > 0) throw httpError(403, 'Setup already done');
+    if (count > 0) throw httpError(403, 'SETUP_ALREADY_DONE');
 
     const { name = '', email, password } = request.body || {};
-    if (!email || !password) throw httpError(400, 'Email and password are required');
+    if (!email || !password) throw httpError(400, 'EMAIL_PASSWORD_REQUIRED');
 
     const user = await User.create({
       name,
@@ -40,17 +40,17 @@ export default async function authRoutes(fastify) {
 
   fastify.post('/login', async (request) => {
     const { email, password, app } = request.body || {};
-    if (!email || !password) throw httpError(400, 'Email and password are required');
+    if (!email || !password) throw httpError(400, 'EMAIL_PASSWORD_REQUIRED');
 
     const user = await User.findOne({ email: String(email).toLowerCase() }).select('+password');
-    if (!user) throw httpError(401, 'Invalid credentials');
+    if (!user) throw httpError(401, 'INVALID_CREDENTIALS');
 
     const valid = await bcrypt.compare(password, user.password);
-    if (!valid) throw httpError(401, 'Invalid credentials');
+    if (!valid) throw httpError(401, 'INVALID_CREDENTIALS');
 
-    if (user.active === false) throw httpError(403, 'User is inactive');
+    if (user.active === false) throw httpError(403, 'USER_INACTIVE');
 
-    if (app && !user.apps.includes(app)) throw httpError(403, `No access to ${app}`);
+    if (app && !user.apps.includes(app)) throw httpError(403, 'APP_FORBIDDEN', { app });
 
     return {
       user: publicUser(user),
@@ -64,17 +64,17 @@ export default async function authRoutes(fastify) {
 
     secured.get('/me', async (request) => {
       const user = await User.findById(request.user.userId);
-      if (!user) throw httpError(401, 'Unauthorized');
+      if (!user) throw httpError(401, 'UNAUTHORIZED');
       return { user: publicUser(user) };
     });
 
     secured.put('/me/password', async (request) => {
       const { currentPassword, newPassword } = request.body || {};
-      if (!currentPassword) throw httpError(400, 'Current password is required');
+      if (!currentPassword) throw httpError(400, 'CURRENT_PASSWORD_REQUIRED');
 
       const user = await User.findById(request.user.userId).select('+password');
       const valid = await bcrypt.compare(String(currentPassword), user.password);
-      if (!valid) throw httpError(400, 'Current password is incorrect');
+      if (!valid) throw httpError(400, 'CURRENT_PASSWORD_INCORRECT');
 
       user.password = await hashPassword(newPassword);
       await user.save();

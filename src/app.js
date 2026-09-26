@@ -55,7 +55,7 @@ export function buildApp(options = {}) {
     origin: origins.length ? origins : true,
     // O padrao do plugin e so GET,HEAD,POST: sem isto o navegador barra PUT e DELETE no preflight.
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language'],
     maxAge: 86400,
   });
 

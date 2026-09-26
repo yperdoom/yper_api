@@ -15,7 +15,7 @@ export default async function usersRoutes(fastify) {
 
   const findOr404 = async (id) => {
     const user = await User.findById(id);
-    if (!user) throw httpError(404, 'Not found');
+    if (!user) throw httpError(404, 'NOT_FOUND');
     return user;
   };
 
@@ -28,7 +28,7 @@ export default async function usersRoutes(fastify) {
 
   fastify.post('/', async (request, reply) => {
     const { name = '', email, password, role, apps } = request.body || {};
-    if (!email || !password) throw httpError(400, 'Email and password are required');
+    if (!email || !password) throw httpError(400, 'EMAIL_PASSWORD_REQUIRED');
 
     const user = new User({ name, email, role, apps: sanitizeApps(apps) });
     user.password = await hashPassword(password);
@@ -49,7 +49,7 @@ export default async function usersRoutes(fastify) {
     }
 
     if (isSelf(request) && (user.role !== 'admin' || !user.active)) {
-      throw httpError(409, 'You cannot demote or deactivate yourself');
+      throw httpError(409, 'SELF_DEMOTE');
     }
     if (user.role === 'admin') user.apps = [...APPS];
 
@@ -65,10 +65,10 @@ export default async function usersRoutes(fastify) {
   });
 
   fastify.delete('/:id', async (request) => {
-    if (isSelf(request)) throw httpError(409, 'You cannot delete yourself');
+    if (isSelf(request)) throw httpError(409, 'SELF_DELETE');
 
     const user = await User.findByIdAndDelete(request.params.id);
-    if (!user) throw httpError(404, 'Not found');
+    if (!user) throw httpError(404, 'NOT_FOUND');
     return { success: true };
   });
 }

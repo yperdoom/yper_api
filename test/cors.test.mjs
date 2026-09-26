@@ -59,7 +59,7 @@ const emptyBody = await fetch(`${base}/auth/login`, {
   headers: { 'Content-Type': 'application/json' },
 });
 const emptyPayload = await emptyBody.json();
-check('content-type json sem corpo nao quebra', emptyBody.status === 400 && emptyPayload.error === 'Email and password are required', emptyPayload);
+check('content-type json sem corpo nao quebra', emptyBody.status === 400 && emptyPayload.code === 'EMAIL_PASSWORD_REQUIRED', emptyPayload);
 
 const malformed = await fetch(`${base}/auth/login`, {
   method: 'POST',
@@ -78,7 +78,7 @@ check('barra no fim casa a mesma rota', trailing.status === 200, trailing.status
 
 const unknown = await fetch(`${base}/nao-existe`);
 const unknownBody = await unknown.json();
-check('rota inexistente -> 404 com mensagem', unknown.status === 404 && unknownBody.error.startsWith('Route not found'), unknownBody);
+check('rota inexistente -> 404 com mensagem', unknown.status === 404 && unknownBody.code === 'ROUTE_NOT_FOUND' && !!unknownBody.error, unknownBody);
 
 await app.close();
 

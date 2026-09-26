@@ -23,14 +23,14 @@ export async function applyMovement({
   occurredAt,
 }) {
   if (!['in', 'out', 'adjustment'].includes(type)) {
-    throw httpError(400, `Invalid movement type: ${type}`);
+    throw httpError(400, 'INVALID_MOVEMENT_TYPE', { type });
   }
   if (typeof quantity !== 'number' || Number.isNaN(quantity) || quantity < 0) {
-    throw httpError(400, 'quantity must be a number >= 0');
+    throw httpError(400, 'INVALID_QUANTITY');
   }
 
   const product = await Product.findById(productId);
-  if (!product) throw httpError(404, `Product not found: ${productId}`);
+  if (!product) throw httpError(404, 'PRODUCT_NOT_FOUND', { id: String(productId) });
 
   let delta;
   if (type === 'in') delta = quantity;

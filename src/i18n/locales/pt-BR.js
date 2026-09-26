@@ -1,0 +1,43 @@
+export const values = Object.freeze({
+  draft: 'em rascunho',
+  confirmed: 'confirmada',
+  cancelled: 'cancelada',
+});
+
+export default Object.freeze({
+  UNAUTHORIZED: 'Não autorizado',
+  TOKEN_INVALID: 'Sessão inválida ou expirada',
+  APP_FORBIDDEN: 'Você não tem acesso ao {app}',
+  ADMIN_ONLY: 'Acesso restrito a administradores',
+  NOT_FOUND: 'Não encontrado',
+  ROUTE_NOT_FOUND: 'Rota não encontrada: {method} {url}',
+  BAD_REQUEST: 'Requisição inválida',
+  INTERNAL_ERROR: 'Erro interno do servidor',
+  VALIDATION_FAILED: 'Dados inválidos',
+  INVALID_VALUE: 'Valor inválido para {field}',
+  DUPLICATE_VALUE: 'Já existe um registro com esse valor',
+
+  SETUP_ALREADY_DONE: 'A configuração inicial já foi feita',
+  EMAIL_PASSWORD_REQUIRED: 'Informe e-mail e senha',
+  INVALID_CREDENTIALS: 'E-mail ou senha incorretos',
+  USER_INACTIVE: 'Usuário inativo',
+  PASSWORD_TOO_SHORT: 'A senha precisa ter pelo menos {min} caracteres',
+  CURRENT_PASSWORD_REQUIRED: 'Informe a senha atual',
+  CURRENT_PASSWORD_INCORRECT: 'Senha atual incorreta',
+  SELF_DEMOTE: 'Você não pode rebaixar nem desativar a si mesmo',
+  SELF_DELETE: 'Você não pode excluir a si mesmo',
+
+  CUSTOMER_HAS_ORDERS: 'O cliente tem {count} pedido(s) e não pode ser excluído',
+  RECIPE_HAS_ORDERS: 'A receita tem {count} pedido(s) e não pode ser excluída',
+  INGREDIENT_IN_USE: 'O ingrediente é usado em {count} receita(s) e não pode ser excluído',
+
+  PRODUCT_HAS_MOVEMENTS: 'O produto tem {count} movimentação(ões) de estoque; desative-o em vez de excluir',
+  PRODUCT_NOT_FOUND: 'Produto não encontrado: {id}',
+  MOVEMENTS_IMMUTABLE: 'Movimentações de estoque não podem ser alteradas; lance um ajuste',
+  INVALID_MOVEMENT_TYPE: 'Tipo de movimentação inválido: {type}',
+  INVALID_QUANTITY: 'A quantidade deve ser um número maior ou igual a zero',
+  INVOICE_NOT_DRAFT: 'A nota está {status}; cancele-a em vez de alterar',
+  INVOICE_NOT_CONFIRMABLE: 'A nota está {status} e não pode ser confirmada',
+  INVOICE_NO_ITEMS: 'A nota não tem itens',
+  INVOICE_ALREADY_CANCELLED: 'A nota já está cancelada',
+});

@@ -22,7 +22,7 @@ async function list() {
 async function beforeDelete(request) {
   const linked = await StockMovement.countDocuments({ product: request.params.id });
   if (linked > 0) {
-    throw httpError(409, `Product has ${linked} stock movement(s); deactivate it instead`);
+    throw httpError(409, 'PRODUCT_HAS_MOVEMENTS', { count: linked });
   }
 }
 

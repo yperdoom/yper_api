@@ -3,7 +3,7 @@
  *
  * Le os fontes de <FRONTS_DIR>/{helake,movix,yper}/src (padrao: ../yper/apps, o monorepo),
  * extrai as chamadas api.get/post/put/del, troca os trechos interpolados por valores
- * validos e bate em cada uma. Uma rota inexistente responde "Route not found" e e
+ * validos e bate em cada uma. Uma rota inexistente responde code ROUTE_NOT_FOUND e e
  * reportada aqui. App com fonte mas sem nenhuma chamada extraida tambem falha: sinal
  * de que o regex parou de casar.
  *
@@ -112,7 +112,7 @@ for (const appName of APPS) {
     });
 
     const payload = await response.json().catch(() => ({}));
-    const routeMissing = response.status === 404 && String(payload.error || '').startsWith('Route not found');
+    const routeMissing = response.status === 404 && payload.code === 'ROUTE_NOT_FOUND';
 
     checked += 1;
     if (routeMissing) {

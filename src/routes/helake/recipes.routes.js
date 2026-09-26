@@ -45,7 +45,7 @@ async function list() {
 async function beforeDelete(request) {
   const linked = await Order.countDocuments({ recipe: request.params.id });
   if (linked > 0) {
-    throw httpError(409, `Recipe has ${linked} order(s) and cannot be deleted`);
+    throw httpError(409, 'RECIPE_HAS_ORDERS', { count: linked });
   }
 }
 

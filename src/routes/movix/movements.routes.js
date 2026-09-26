@@ -33,7 +33,7 @@ export default async function movementRoutes(fastify) {
    * lance um movimento do tipo 'adjustment'.
    */
   const immutable = async () => {
-    throw httpError(405, 'Stock movements are immutable; post an adjustment instead');
+    throw httpError(405, 'MOVEMENTS_IMMUTABLE');
   };
 
   fastify.put('/:id', immutable);

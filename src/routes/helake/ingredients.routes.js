@@ -47,7 +47,7 @@ async function list() {
 async function beforeDelete(request) {
   const linked = await Recipe.countDocuments({ 'ingredients.ingredient': request.params.id });
   if (linked > 0) {
-    throw httpError(409, `Ingredient is used by ${linked} recipe(s) and cannot be deleted`);
+    throw httpError(409, 'INGREDIENT_IN_USE', { count: linked });
   }
 }
 
