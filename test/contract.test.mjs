@@ -1,18 +1,20 @@
 /**
  * Verifica que toda rota chamada pelos frontends existe na API.
  *
- * Le os fontes de helake/, movix/ e yper/, extrai as chamadas api.get/post/put/del,
- * troca os trechos interpolados por valores validos e bate em cada uma. Uma rota
- * inexistente responde "Route not found" e e reportada aqui.
+ * Le os fontes de <FRONTS_DIR>/{helake,movix,yper}/src (padrao: ../yper/apps, o monorepo),
+ * extrai as chamadas api.get/post/put/del, troca os trechos interpolados por valores
+ * validos e bate em cada uma. Uma rota inexistente responde "Route not found" e e
+ * reportada aqui. App com fonte mas sem nenhuma chamada extraida tambem falha: sinal
+ * de que o regex parou de casar.
  *
- * Rodar da pasta api/:  node test/contract.test.mjs
+ * Rodar da raiz do yper_api:  node test/contract.test.mjs
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 
-const ROOT = resolve('..');
+const ROOT = process.env.FRONTS_DIR || resolve('../yper/apps');
 const APPS = ['helake', 'movix', 'yper'];
 const FAKE_ID = '000000000000000000000000';
 
@@ -70,11 +72,12 @@ const { token } = await setup.json();
 
 let checked = 0;
 let missing = 0;
+let empty = 0;
 
 for (const appName of APPS) {
   const srcDir = join(ROOT, appName, 'src');
 
-  // Os frontends ficam ao lado de api/. Num clone isolado do backend, pula.
+  // Os frontends ficam no monorepo ao lado. Num clone isolado do backend, pula.
   if (!existsSync(srcDir)) {
     console.log(`\n[${appName}] fonte nao encontrada em ${srcDir}, pulando`);
     continue;
@@ -89,6 +92,12 @@ for (const appName of APPS) {
   }
 
   console.log(`\n[${appName}] ${calls.size} rota(s) chamadas pelo frontend`);
+
+  if (calls.size === 0) {
+    empty += 1;
+    console.log(`  FALHA  nenhuma chamada encontrada em ${srcDir}`);
+    continue;
+  }
 
   for (const { method, path } of [...calls.values()].sort((a, b) => a.path.localeCompare(b.path))) {
     const url = `${base}/${appName}${path}`;
@@ -124,4 +133,5 @@ console.log(
     ? `\n${checked} rota(s) conferida(s): todas existem na API.`
     : `\n${missing} de ${checked} rota(s) NAO existem na API.`
 );
-process.exit(missing === 0 ? 0 : 1);
+if (empty > 0) console.log(`${empty} app(s) sem nenhuma chamada extraida.`);
+process.exit(missing === 0 && empty === 0 ? 0 : 1);
