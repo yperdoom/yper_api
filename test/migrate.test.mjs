@@ -19,6 +19,15 @@ await mongoose.connection.db.collection('users').insertOne({
   createdAt: new Date(),
 });
 await mongoose.connection.db.collection('orders').insertOne({ quantity: 1 });
+await mongoose.connection.db.collection('exercises').insertMany([
+  { name: 'Supino', muscleGroup: 'Peito' },
+  { name: 'Burpee', muscleGroup: 'Corpo inteiro' },
+  { name: 'Remada', muscleGroup: 'back' },
+]);
+await mongoose.connection.db.collection('recipes').insertMany([
+  { name: 'Torta', yieldUnit: 'fatias' },
+  { name: 'Pao', yieldUnit: 'un' },
+]);
 await mongoose.disconnect();
 
 const run = (args) =>
@@ -41,6 +50,9 @@ check('dry-run lista as colecoes', dry.includes('users') && dry.includes('orders
 check('dry-run anuncia 1 usuario pendente', dry.includes('Usuarios: 1 sem apps'), dry);
 check('dry-run anuncia 1 usuario sem role', dry.includes('Usuarios: 1 sem role'), dry);
 check('dry-run anuncia 1 usuario sem active', dry.includes('Usuarios: 1 sem active'), dry);
+check('dry-run anuncia Peito -> chest', dry.includes('Exercicios: 1 com muscleGroup "Peito" -> "chest"'), dry);
+check('dry-run anuncia Corpo inteiro -> fullBody', dry.includes('Exercicios: 1 com muscleGroup "Corpo inteiro" -> "fullBody"'), dry);
+check('dry-run anuncia fatias -> slices', dry.includes('Receitas: 1 com yieldUnit "fatias" -> "slices"'), dry);
 
 await mongoose.connect(uri, { dbName: 'legacy' });
 const untouched = await mongoose.connection.db.collection('users').findOne({});
@@ -55,6 +67,12 @@ const migrated = await mongoose.connection.db.collection('users').findOne({});
 check('usuario recebeu os 3 apps', migrated.apps?.length === 3, migrated);
 check('usuario sem role virou admin', migrated.role === 'admin', migrated);
 check('usuario sem active ficou ativo', migrated.active === true, migrated);
+const groups = (await mongoose.connection.db.collection('exercises').find().sort({ name: 1 }).toArray())
+  .map((e) => `${e.name}:${e.muscleGroup}`).join();
+check('muscleGroup em ingles', groups === 'Burpee:fullBody,Remada:back,Supino:chest', groups);
+const units = (await mongoose.connection.db.collection('recipes').find().sort({ name: 1 }).toArray())
+  .map((r) => `${r.name}:${r.yieldUnit}`).join();
+check('fatias virou slices e un ficou', units === 'Pao:un,Torta:slices', units);
 await mongoose.disconnect();
 
 const again = run([]);

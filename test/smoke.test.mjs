@@ -83,7 +83,7 @@ const badIngredient = await call('POST', '/helake/ingredients', { name: 'Sem uni
 check('ingrediente sem unidade -> 400', badIngredient.status === 400, badIngredient);
 
 const recipe = await call('POST', '/helake/recipes', {
-  name: 'Bolo', category: 'Cakes', yield: 1, laborCost: 10, sellingPrice: 100,
+  name: 'Bolo', category: 'Cakes', yield: 8, yieldUnit: 'slices', laborCost: 10, sellingPrice: 100,
   ingredients: [{ ingredient: flourId, quantity: 2 }],
 });
 check('cria receita', recipe.status === 201, recipe);
@@ -223,12 +223,19 @@ check('dashboard movix responde', movixDash.status === 200 && typeof movixDash.b
 
 // ---------------- yper ----------------
 console.log('\n[yper]');
-const exercise = await call('POST', '/yper/exercises', { name: 'Supino reto', muscleGroup: 'Peito', equipment: 'Barra' });
+const exercise = await call('POST', '/yper/exercises', { name: 'Supino reto', muscleGroup: 'chest', equipment: 'Barra' });
 check('cria exercicio', exercise.status === 201, exercise);
 const exerciseId = exercise.body.exercise?._id;
 
-const dupExercise = await call('POST', '/yper/exercises', { name: 'Supino reto', muscleGroup: 'Peito' });
+const dupExercise = await call('POST', '/yper/exercises', { name: 'Supino reto', muscleGroup: 'chest' });
 check('exercicio duplicado do mesmo usuario -> 409', dupExercise.status === 409, dupExercise);
+
+const oldGroup = await call('POST', '/yper/exercises', { name: 'Remada', muscleGroup: 'Costas' });
+check('muscleGroup antigo em portugues -> 400', oldGroup.status === 400, oldGroup);
+
+const noGroup = await call('POST', '/yper/exercises', { name: 'Polichinelo' });
+check('muscleGroup padrao e other', noGroup.status === 201 && noGroup.body.exercise?.muscleGroup === 'other', noGroup.body);
+await call('DELETE', `/yper/exercises/${noGroup.body.exercise?._id}`);
 
 const workout = await call('POST', '/yper/workouts', {
   name: 'Treino A', focus: 'Peito e triceps', weekdays: [1, 4],

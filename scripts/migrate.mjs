@@ -11,6 +11,32 @@ import mongoose from 'mongoose';
 
 import { APPS } from '../src/models/User.js';
 
+// Valores antigos gravados em portugues -> valor em ingles.
+const MUSCLE_GROUP_MAP = {
+  Peito: 'chest',
+  Costas: 'back',
+  Pernas: 'legs',
+  Gluteos: 'glutes',
+  Ombros: 'shoulders',
+  Biceps: 'biceps',
+  Triceps: 'triceps',
+  Abdomen: 'abs',
+  Panturrilha: 'calves',
+  Cardio: 'cardio',
+  'Corpo inteiro': 'fullBody',
+  Outro: 'other',
+};
+const YIELD_UNIT_MAP = { fatias: 'slices' };
+
+const renameValues = (collection, label, field, map) =>
+  Object.entries(map).map(([from, to]) => ({
+    collection,
+    label,
+    what: `com ${field} "${from}" -> "${to}"`,
+    filter: { [field]: from },
+    update: { $set: { [field]: to } },
+  }));
+
 const STEPS = [
   {
     collection: 'users',
@@ -34,6 +60,8 @@ const STEPS = [
     filter: { active: { $exists: false } },
     update: { $set: { active: true } },
   },
+  ...renameValues('exercises', 'Exercicios', 'muscleGroup', MUSCLE_GROUP_MAP),
+  ...renameValues('recipes', 'Receitas', 'yieldUnit', YIELD_UNIT_MAP),
 ];
 
 const dryRun = process.argv.includes('--dry-run');
