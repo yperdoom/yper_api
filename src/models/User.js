@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 export const APPS = ['helake', 'movix', 'yper'];
+export const ROLES = ['admin', 'manager', 'employee'];
 
 const UserSchema = new mongoose.Schema(
   {
@@ -11,6 +12,8 @@ const UserSchema = new mongoose.Schema(
       type: [{ type: String, enum: APPS }],
       default: () => [...APPS],
     },
+    role: { type: String, enum: ROLES, default: 'employee' },
+    active: { type: Boolean, default: true },
   },
   { timestamps: true }
 );

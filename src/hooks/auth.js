@@ -1,5 +1,7 @@
 import jwt from 'jsonwebtoken';
 
+import User from '../models/User.js';
+
 const TOKEN_TTL = '30d';
 
 function secret() {
@@ -8,12 +10,14 @@ function secret() {
   return value;
 }
 
-export function signToken({ userId, email, apps }) {
-  return jwt.sign({ userId, email, apps }, secret(), { expiresIn: TOKEN_TTL });
+export function signToken({ userId, email, apps, role }) {
+  return jwt.sign({ userId, email, apps, role }, secret(), { expiresIn: TOKEN_TTL });
 }
 
 /**
  * Hook onRequest: valida o Bearer token e preenche request.user.
+ * O usuario e conferido no banco a cada request: removido ou inativo perde o acesso
+ * na hora, mesmo com token valido. O role tambem vem do banco, nao do token.
  * Responder dentro de um hook interrompe a cadeia, entao a rota nem roda.
  */
 export async function requireAuth(request, reply) {
@@ -24,11 +28,19 @@ export async function requireAuth(request, reply) {
     return reply.code(401).send({ error: 'Unauthorized' });
   }
 
+  let payload;
   try {
-    request.user = jwt.verify(token, secret());
+    payload = jwt.verify(token, secret());
   } catch {
     return reply.code(401).send({ error: 'Invalid or expired token' });
   }
+
+  const user = await User.findById(payload.userId).select('role active').lean();
+  if (!user || user.active === false) {
+    return reply.code(401).send({ error: 'Unauthorized' });
+  }
+
+  request.user = { ...payload, role: user.role };
 }
 
 /** Hook onRequest: exige que o app esteja liberado no token. Roda depois do requireAuth. */

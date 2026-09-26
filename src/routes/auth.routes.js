@@ -9,7 +9,12 @@ const publicUser = (user) => ({
   name: user.name,
   email: user.email,
   apps: user.apps,
+  role: user.role,
+  active: user.active,
 });
+
+const tokenFor = (user) =>
+  signToken({ userId: user._id, email: user.email, apps: user.apps, role: user.role });
 
 function sanitizeApps(apps) {
   if (!Array.isArray(apps) || apps.length === 0) return [...APPS];
@@ -31,11 +36,12 @@ export default async function authRoutes(fastify) {
       email,
       password: await bcrypt.hash(password, 10),
       apps: [...APPS],
+      role: 'admin',
     });
 
     return reply.code(201).send({
       user: publicUser(user),
-      token: signToken({ userId: user._id, email: user.email, apps: user.apps }),
+      token: tokenFor(user),
     });
   });
 
@@ -55,11 +61,13 @@ export default async function authRoutes(fastify) {
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) throw httpError(401, 'Invalid credentials');
 
+    if (user.active === false) throw httpError(403, 'User is inactive');
+
     if (app && !user.apps.includes(app)) throw httpError(403, `No access to ${app}`);
 
     return {
       user: publicUser(user),
-      token: signToken({ userId: user._id, email: user.email, apps: user.apps }),
+      token: tokenFor(user),
     };
   });
 

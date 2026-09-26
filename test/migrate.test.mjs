@@ -39,10 +39,12 @@ const dry = run(['--dry-run']);
 check('dry-run nomeia o banco', dry.includes('"legacy"'), dry);
 check('dry-run lista as colecoes', dry.includes('users') && dry.includes('orders'), dry);
 check('dry-run anuncia 1 usuario pendente', dry.includes('Usuarios: 1 sem apps'), dry);
+check('dry-run anuncia 1 usuario sem role', dry.includes('Usuarios: 1 sem role'), dry);
+check('dry-run anuncia 1 usuario sem active', dry.includes('Usuarios: 1 sem active'), dry);
 
 await mongoose.connect(uri, { dbName: 'legacy' });
 const untouched = await mongoose.connection.db.collection('users').findOne({});
-check('dry-run nao alterou nada', untouched.apps === undefined, untouched);
+check('dry-run nao alterou nada', untouched.apps === undefined && untouched.role === undefined && untouched.active === undefined, untouched);
 await mongoose.disconnect();
 
 const applied = run([]);
@@ -51,6 +53,8 @@ check('aplica em 1 usuario', applied.includes('1 atualizado(s)'), applied);
 await mongoose.connect(uri, { dbName: 'legacy' });
 const migrated = await mongoose.connection.db.collection('users').findOne({});
 check('usuario recebeu os 3 apps', migrated.apps?.length === 3, migrated);
+check('usuario sem role virou admin', migrated.role === 'admin', migrated);
+check('usuario sem active ficou ativo', migrated.active === true, migrated);
 await mongoose.disconnect();
 
 const again = run([]);

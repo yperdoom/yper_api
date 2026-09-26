@@ -13,7 +13,8 @@
     "test:contract": "node test/contract.test.mjs",
     "test:migrate": "node test/migrate.test.mjs",
     "test:boot": "node test/boot.test.mjs",
-    "test:all": "node test/cors.test.mjs && node test/smoke.test.mjs && node test/contract.test.mjs && node test/boot.test.mjs && node test/migrate.test.mjs",
+    "test:users": "node test/users.test.mjs",
+    "test:all": "node test/cors.test.mjs && node test/smoke.test.mjs && node test/users.test.mjs && node test/contract.test.mjs && node test/boot.test.mjs && node test/migrate.test.mjs",
     "test:coverage": "c8 yarn test:all"
   },
   "dependencies": {

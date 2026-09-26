@@ -19,6 +19,21 @@ const STEPS = [
     filter: { apps: { $in: [null, []] } },
     update: { $set: { apps: [...APPS] } },
   },
+  // Antes dos papeis so existia o dono da base, entao quem nao tem role e admin.
+  {
+    collection: 'users',
+    label: 'Usuarios',
+    what: 'sem role',
+    filter: { role: { $exists: false } },
+    update: { $set: { role: 'admin' } },
+  },
+  {
+    collection: 'users',
+    label: 'Usuarios',
+    what: 'sem active',
+    filter: { active: { $exists: false } },
+    update: { $set: { active: true } },
+  },
 ];
 
 const dryRun = process.argv.includes('--dry-run');
