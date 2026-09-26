@@ -30,15 +30,26 @@ yarn dev                 # http://localhost:4000
 
 ## Banco local (Docker)
 
+Pré-requisito: Docker com o plugin Compose (`docker compose version`).
+
 ```bash
-yarn db:up      # sobe um mongo:7 em localhost:27017 (docker compose)
+yarn db:up      # sobe um mongo:7 em localhost:27017 (container yper-mongo, volume yper-mongo-data)
 yarn db:logs    # acompanha o log
-yarn db:down    # derruba o container
+yarn db:down    # derruba o container (os dados ficam no volume)
 ```
 
-Aponte o `.env` para `MONGODB_URI=mongodb://localhost:27017` (já é o padrão do `.env.example`). O primeiro acesso
-cria o admin pela tela de setup, igual em produção. Credenciais de produção ficam só nas variáveis de ambiente
-do Render — nunca neste banco local.
+**Apontar a API para o local.** No `.env`, use `MONGODB_URI=mongodb://localhost:27017` (já é o valor do
+`.env.example`) e reinicie a API. O banco dentro dele continua sendo `MONGODB_DB` (padrão `yper`).
+
+**Primeiro acesso.** Com a base vazia, a tela de login dos fronts abre o cadastro inicial, que cria o admin.
+
+**Alternar entre local e produção.** Troque o `MONGODB_URI` no `.env` e reinicie a API. Credenciais de produção
+ficam só nas variáveis de ambiente do Render — evite deixá-las no `.env` local, para testes e migrações não
+mexerem em dados reais.
+
+**Zerar a base local.** `docker compose down -v` apaga o container e o volume; o próximo `yarn db:up` começa vazio.
+
+**Migrações.** Depois de mudanças de schema, rode `yarn migrate --dry-run` e `yarn migrate` também na base local.
 
 ---
 
