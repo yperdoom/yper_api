@@ -52,3 +52,10 @@ export function requireApp(app) {
     }
   };
 }
+
+/** Hook onRequest: so admin passa. Roda depois do requireAuth, que traz o role do banco. */
+export async function requireAdmin(request, reply) {
+  if (request.user?.role !== 'admin') {
+    return reply.code(403).send({ error: 'Admin only' });
+  }
+}
