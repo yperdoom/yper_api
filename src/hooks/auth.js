@@ -17,7 +17,7 @@ export function signToken({ userId, email, apps, role }) {
 /**
  * Hook onRequest: valida o Bearer token e preenche request.user.
  * O usuario e conferido no banco a cada request: removido ou inativo perde o acesso
- * na hora, mesmo com token valido. O role tambem vem do banco, nao do token.
+ * na hora, mesmo com token valido. Role e apps tambem vem do banco, nao do token.
  * Responder dentro de um hook interrompe a cadeia, entao a rota nem roda.
  */
 export async function requireAuth(request, reply) {
@@ -35,15 +35,15 @@ export async function requireAuth(request, reply) {
     return reply.code(401).send({ error: 'Invalid or expired token' });
   }
 
-  const user = await User.findById(payload.userId).select('role active').lean();
+  const user = await User.findById(payload.userId).select('role active apps').lean();
   if (!user || user.active === false) {
     return reply.code(401).send({ error: 'Unauthorized' });
   }
 
-  request.user = { ...payload, role: user.role };
+  request.user = { ...payload, role: user.role, apps: user.apps };
 }
 
-/** Hook onRequest: exige que o app esteja liberado no token. Roda depois do requireAuth. */
+/** Hook onRequest: exige que o app esteja liberado para o usuario. Roda depois do requireAuth. */
 export function requireApp(app) {
   return async function checkApp(request, reply) {
     const apps = request.user?.apps || [];

@@ -210,6 +210,15 @@ check('senha antiga deixa de valer', oldLogin.status === 401, oldLogin);
 const newLogin = await call('POST', '/auth/login', { email: 'emp@test.com', password: 'nova1234' });
 check('login com a senha nova', newLogin.status === 200, newLogin);
 
+// ---------------- apps valem na hora ----------------
+console.log('\n[apps valem na hora]');
+const empNow = await loginAs('emp@test.com', 'nova1234');
+const beforeRevoke = await call('GET', '/movix/products', null, empNow);
+check('employee com movix acessa movix', beforeRevoke.status === 200, beforeRevoke);
+await call('PUT', `/auth/users/${empId}`, { apps: ['yper'] }, adminToken);
+const afterRevoke = await call('GET', '/movix/products', null, empNow);
+check('app removido bloqueia o token atual', afterRevoke.status === 403, afterRevoke);
+
 await app.close();
 await mongoose.disconnect();
 await mongo.stop();
