@@ -127,6 +127,11 @@ check('cliente com pedido -> 409', delCustomer.status === 409, delCustomer);
 const customersList = await call('GET', '/helake/customers');
 check('cliente traz stats (cancelado nao conta)', customersList.body.customers?.[0]?.totalOrders === 0, customersList.body.customers?.[0]);
 
+// Pedido orfao (sem cliente) gravado direto no banco nao pode derrubar a listagem.
+await mongoose.connection.db.collection('orders').insertOne({ status: 'new' });
+const withOrphan = await call('GET', '/helake/customers');
+check('pedido sem cliente nao quebra a lista', withOrphan.status === 200, withOrphan);
+
 const settings = await call('PUT', '/helake/settings', { businessName: 'Helake', defaultMargin: 60 });
 check('settings salvo', settings.status === 200 && settings.body.settings.defaultMargin === 60, settings);
 
