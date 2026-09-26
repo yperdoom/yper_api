@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import User, { APPS } from '../models/User.js';
 import { signToken, requireAuth } from '../hooks/auth.js';
 import { httpError } from '../lib/errors.js';
-import { publicUser } from '../lib/users.js';
+import { publicUser, hashPassword } from '../lib/users.js';
 import usersRoutes from './users.routes.js';
 
 const tokenFor = (user) =>
@@ -65,6 +65,19 @@ export default async function authRoutes(fastify) {
     secured.get('/me', async (request) => {
       const user = await User.findById(request.user.userId);
       if (!user) throw httpError(401, 'Unauthorized');
+      return { user: publicUser(user) };
+    });
+
+    secured.put('/me/password', async (request) => {
+      const { currentPassword, newPassword } = request.body || {};
+      if (!currentPassword) throw httpError(400, 'Current password is required');
+
+      const user = await User.findById(request.user.userId).select('+password');
+      const valid = await bcrypt.compare(String(currentPassword), user.password);
+      if (!valid) throw httpError(400, 'Current password is incorrect');
+
+      user.password = await hashPassword(newPassword);
+      await user.save();
       return { user: publicUser(user) };
     });
 

@@ -193,6 +193,23 @@ check('removido nao loga', delLogin.status === 401, delLogin);
 const delMissing = await call('DELETE', `/auth/users/${manId}`, null, adminToken);
 check('remover id inexistente -> 404', delMissing.status === 404, delMissing);
 
+// ---------------- trocar a propria senha ----------------
+console.log('\n[trocar a propria senha]');
+const noToken = await call('PUT', '/auth/me/password', { currentPassword: 'abc12345', newPassword: 'nova1234' });
+check('sem token -> 401', noToken.status === 401, noToken);
+const wrongCurrent = await call('PUT', '/auth/me/password', { currentPassword: 'errada', newPassword: 'nova1234' }, empToken);
+check('senha atual errada -> 400', wrongCurrent.status === 400, wrongCurrent);
+const shortNew = await call('PUT', '/auth/me/password', { currentPassword: 'abc12345', newPassword: '123' }, empToken);
+check('senha nova curta -> 400', shortNew.status === 400, shortNew);
+const missingCurrent = await call('PUT', '/auth/me/password', { newPassword: 'nova1234' }, empToken);
+check('sem senha atual -> 400', missingCurrent.status === 400, missingCurrent);
+const changed = await call('PUT', '/auth/me/password', { currentPassword: 'abc12345', newPassword: 'nova1234' }, empToken);
+check('employee troca a propria senha', changed.status === 200 && noPassword([changed.body.user]), changed);
+const oldLogin = await call('POST', '/auth/login', { email: 'emp@test.com', password: 'abc12345' });
+check('senha antiga deixa de valer', oldLogin.status === 401, oldLogin);
+const newLogin = await call('POST', '/auth/login', { email: 'emp@test.com', password: 'nova1234' });
+check('login com a senha nova', newLogin.status === 200, newLogin);
+
 await app.close();
 await mongoose.disconnect();
 await mongo.stop();
