@@ -10,3 +10,5 @@ coverage
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+muscle-groups-audit-*.jsonl
