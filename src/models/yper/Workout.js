@@ -3,8 +3,8 @@ import mongoose from 'mongoose';
 const WorkoutItemSchema = new mongoose.Schema(
   {
     exercise: { type: mongoose.Schema.Types.ObjectId, ref: 'Exercise', required: true },
-    sets: { type: Number, default: 3, min: 1 },
-    reps: { type: String, default: '10' }, // texto: aceita "8-12", "ate a falha"
+    sets: { type: Number, default: null, min: 1 },
+    reps: { type: String, default: '' }, // opcional: aceita "8-12", "ate a falha"
     weight: { type: Number, default: 0, min: 0 },
     restSeconds: { type: Number, default: 60, min: 0 },
     notes: { type: String, default: '' },

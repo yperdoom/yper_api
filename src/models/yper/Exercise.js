@@ -12,6 +12,7 @@ const ExerciseSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     muscleGroup: { type: String, enum: MUSCLE_GROUPS, default: 'other', required: true },
     equipment: { type: String, default: '', trim: true },
+    weight: { type: Number, min: 0, validate: { validator: (value) => value == null || Number.isFinite(value) } },
     videoUrl: { type: String, default: '' },
     notes: { type: String, default: '' },
   },

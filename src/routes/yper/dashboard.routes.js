@@ -4,6 +4,7 @@ import WorkoutLog from '../../models/yper/WorkoutLog.js';
 import Profile from '../../models/yper/Profile.js';
 import BodyMeasurement from '../../models/yper/BodyMeasurement.js';
 import { mealTotals, sumTotals, dayRange } from '../../services/nutrition.service.js';
+import { withExerciseWeights } from '../../lib/exerciseWeights.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -27,6 +28,11 @@ export default async function dashboardRoutes(fastify) {
     ]);
 
     const consumed = sumTotals(todayMeals.map(mealTotals));
+    const exercises = await withExerciseWeights(todaysWorkouts.flatMap(workout => workout.items.map(item => item.exercise).filter(Boolean)), user);
+    const byId = new Map(exercises.map(exercise => [String(exercise._id), exercise]));
+    for (const workout of todaysWorkouts) {
+      for (const item of workout.items) if (item.exercise) item.exercise = byId.get(String(item.exercise._id));
+    }
 
     return {
       targets: {

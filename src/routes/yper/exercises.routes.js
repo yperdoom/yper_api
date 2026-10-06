@@ -1,6 +1,7 @@
 import Exercise, { MUSCLE_GROUPS } from '../../models/yper/Exercise.js';
 import { crudRoutes } from '../../lib/crud.js';
 import { httpError } from '../../lib/errors.js';
+import { withExerciseWeights } from '../../lib/exerciseWeights.js';
 
 export default crudRoutes(Exercise, {
   plural: 'exercises',
@@ -15,6 +16,7 @@ export default crudRoutes(Exercise, {
     }
     const filter = { user: request.user.userId };
     if (muscleGroup !== undefined) filter.muscleGroup = muscleGroup;
-    return { exercises: await Exercise.find(filter).sort({ muscleGroup: 1, name: 1 }).lean() };
+    const exercises = await Exercise.find(filter).sort({ muscleGroup: 1, name: 1 }).lean();
+    return { exercises: await withExerciseWeights(exercises, request.user.userId) };
   },
 });

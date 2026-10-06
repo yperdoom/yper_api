@@ -8,13 +8,15 @@ async function list() {
   const [customers, orderStats] = await Promise.all([
     Customer.find().sort({ name: 1 }).lean(),
     Order.aggregate([
-      { $match: { status: { $ne: 'cancelled' }, customer: { $ne: null } } },
+      { $match: { customer: { $ne: null } } },
       {
         $group: {
           _id: '$customer',
-          totalOrders: { $sum: 1 },
-          totalSpent: { $sum: '$paidPrice' },
-          lastOrder: { $max: '$deliveryDate' },
+          totalOrders: { $sum: { $cond: [{ $ne: ['$status', 'cancelled'] }, 1, 0] } },
+          completedOrders: { $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] } },
+          cancelledOrders: { $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, 1, 0] } },
+          totalSpent: { $sum: { $cond: [{ $ne: ['$status', 'cancelled'] }, '$paidPrice', 0] } },
+          lastOrder: { $max: { $cond: [{ $ne: ['$status', 'cancelled'] }, '$deliveryDate', null] } },
         },
       },
     ]),
@@ -28,6 +30,8 @@ async function list() {
       return {
         ...customer,
         totalOrders: stats?.totalOrders || 0,
+        completedOrders: stats?.completedOrders || 0,
+        cancelledOrders: stats?.cancelledOrders || 0,
         totalSpent: stats?.totalSpent || 0,
         lastOrder: stats?.lastOrder || null,
       };
