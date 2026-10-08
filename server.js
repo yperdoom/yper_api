@@ -1,6 +1,9 @@
 import 'dotenv/config';
 import { buildApp } from './src/app.js';
 import { connectDB } from './src/config/db.js';
+import { runNotifications } from './src/services/notificationScheduler.js';
+import { pushConfigured } from './src/services/push.service.js';
+import NotificationDelivery from './src/models/yper/NotificationDelivery.js';
 
 const PORT = Number(process.env.PORT) || 4000;
 
@@ -32,6 +35,20 @@ try {
 } catch (err) {
   app.log.error({ err }, 'falha ao conectar no mongo');
   process.exit(1);
+}
+
+if (process.env.NOTIFICATIONS_SCHEDULER_ENABLED === 'true' && pushConfigured()) {
+  await NotificationDelivery.init();
+  let running;
+  const tick = () => {
+    if (running) return;
+    running = runNotifications().then(result => { if (result.failed) app.log.warn({ failed: result.failed }, 'push delivery failures'); })
+      .catch(() => app.log.error('notification scheduler failed')).finally(() => { running = null; });
+  };
+  const interval = setInterval(tick, 60000);
+  interval.unref();
+  tick();
+  app.addHook('onClose', async () => { clearInterval(interval); await running; });
 }
 
 try {

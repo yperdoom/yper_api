@@ -8,6 +8,7 @@ import meals from './meals.routes.js';
 import measurements from './measurements.routes.js';
 import profile from './profile.routes.js';
 import dashboard from './dashboard.routes.js';
+import notifications from './notifications.routes.js';
 
 export default async function yperRoutes(fastify) {
   fastify.addHook('onRequest', requireAuth);
@@ -21,4 +22,5 @@ export default async function yperRoutes(fastify) {
   fastify.register(measurements, { prefix: '/measurements' });
   fastify.register(profile, { prefix: '/profile' });
   fastify.register(dashboard, { prefix: '/dashboard' });
+  fastify.register(notifications, { prefix: '/notifications' });
 }

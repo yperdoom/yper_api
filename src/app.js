@@ -1,5 +1,9 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import { timingSafeEqual } from 'node:crypto';
+import { sendPush, pushConfigured } from './services/push.service.js';
+import { runNotifications } from './services/notificationScheduler.js';
+import { httpError } from './lib/errors.js';
 
 import { errorHandler, notFoundHandler } from './lib/errors.js';
 
@@ -22,15 +26,17 @@ const allowedOrigins = () =>
  * terminam de registrar no listen() ou num await app.ready().
  */
 export function buildApp(options = {}) {
+  const { pushSender = sendPush, ...fastifyOptions } = options;
   const app = Fastify({
     logger: false,
     // Sem isto /customers/ nao casa com /customers, que era o comportamento anterior.
     routerOptions: { ignoreTrailingSlash: true },
-    ...options,
+    ...fastifyOptions,
   });
 
   // Declarar o campo antes deixa a shape do request estavel para a V8.
   app.decorateRequest('user', null);
+  app.decorate('pushSender', pushSender);
 
   // O parser nativo recusa corpo vazio com content-type json, e e comum um cliente
   // mandar o header em DELETE ou em POST de acao. Aqui isso vira um objeto vazio.
@@ -63,6 +69,15 @@ export function buildApp(options = {}) {
   app.setNotFoundHandler(notFoundHandler);
 
   app.get('/health', async () => ({ ok: true, uptime: Math.round(process.uptime()) }));
+  app.post('/internal/notifications/run', async request => {
+    const secret = process.env.NOTIFICATIONS_CRON_SECRET;
+    const provided = request.headers.authorization || '';
+    const expected = `Bearer ${secret}`;
+    if (!secret || secret.length < 32 || Buffer.byteLength(provided) !== Buffer.byteLength(expected)
+      || !timingSafeEqual(Buffer.from(provided), Buffer.from(expected))) throw httpError(401, 'UNAUTHORIZED');
+    if (!pushConfigured()) throw httpError(503, 'PUSH_NOT_CONFIGURED');
+    return runNotifications({ send: pushSender });
+  });
 
   app.register(authRoutes, { prefix: '/auth' });
   app.register(helakeRoutes, { prefix: '/helake' });

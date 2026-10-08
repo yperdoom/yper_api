@@ -5,6 +5,9 @@ export const values = Object.freeze({
 });
 
 export default Object.freeze({
+  PUSH_NOT_CONFIGURED: 'Notifications have not been configured on the server yet.',
+  PUSH_TEST_UNAVAILABLE: 'Device unavailable or recently tested. Wait one minute.',
+  PUSH_SEND_FAILED: 'Could not send. Check the configuration or enable this device again.',
   UNAUTHORIZED: 'Unauthorized',
   TOKEN_INVALID: 'Invalid or expired token',
   APP_FORBIDDEN: 'No access to {app}',
