@@ -9,6 +9,8 @@ import measurements from './measurements.routes.js';
 import profile from './profile.routes.js';
 import dashboard from './dashboard.routes.js';
 import notifications from './notifications.routes.js';
+import finance from './finance.routes.js';
+import banking from './banking.routes.js';
 
 export default async function yperRoutes(fastify) {
   fastify.addHook('onRequest', requireAuth);
@@ -23,4 +25,6 @@ export default async function yperRoutes(fastify) {
   fastify.register(profile, { prefix: '/profile' });
   fastify.register(dashboard, { prefix: '/dashboard' });
   fastify.register(notifications, { prefix: '/notifications' });
+  fastify.register(finance, { prefix: '/finance' });
+  fastify.register(banking, { prefix: '/finance/banking' });
 }

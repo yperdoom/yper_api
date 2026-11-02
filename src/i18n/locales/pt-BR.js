@@ -5,6 +5,22 @@ export const values = Object.freeze({
 });
 
 export default Object.freeze({
+  BANK_DATA_INVALID: 'Dados bancários incompletos ou não suportados. Nenhuma alteração parcial foi aplicada.',
+  BANK_PROVIDER_UNAVAILABLE: 'Não foi possível consultar a Pluggy. Verifique a configuração e a autorização no provedor.',
+  BANK_REPLICA_REQUIRED: 'A importação precisa de MongoDB com replica set (como Atlas) para salvar com segurança.',
+  BANK_IDENTITY_CONFLICT: 'Os identificadores bancários conflitam. A importação foi interrompida para revisão.',
+  BANK_TRANSFER_INVALID: 'Selecione duas pontas confirmadas, de contas diferentes, com o mesmo valor.',
+  BANK_TRANSFER_DATE: 'Transferências com datas diferentes ainda precisam de tratamento específico. Mantenha para revisão.',
+  BANK_MATCH_INVALID: 'O lançamento deve ser direto, da mesma conta, natureza e valor. Confira a ocorrência.',
+  BANK_RULE_INVALID: 'Esta descrição é genérica ou o escopo da regra é inválido.',
+  BANK_MANAGED_ENTRY: 'Este lançamento é conciliado com o banco. Desfaça a decisão em Conexões bancárias antes de alterá-lo.',
+  BANK_NOT_CONFIGURED: 'A conexão pessoal com a Pluggy ainda não está configurada para este usuário.',
+  BANK_ALREADY_LINKED: 'Esta conta já possui vínculo. Reutilize o vínculo existente para evitar duplicação.',
+  BANK_SYNC_BUSY: 'A leitura está em andamento, pausada ou indisponível. Aguarde um minuto antes de tentar novamente.',
+  FINANCE_CHANGED: 'Este registro foi alterado. Atualize a tela e tente novamente.',
+  FINANCE_HISTORY_LOCKED: 'Este plano já possui ocorrências alteradas. Preserve o histórico: ajuste o estado das ocorrências antes de editar o plano.',
+  FINANCE_ACCOUNT_USED: 'Esta conta possui lançamentos ou estimativas e não pode ser excluída.',
+  FINANCE_TOO_LARGE: 'O limite desta versão é de 2.000 planos por usuário.',
   PUSH_NOT_CONFIGURED: 'Notificações ainda não foram configuradas no servidor.',
   PUSH_TEST_UNAVAILABLE: 'Aparelho indisponível ou teste recente. Aguarde um minuto.',
   PUSH_SEND_FAILED: 'Não foi possível enviar. Confira a configuração ou ative novamente este aparelho.',
