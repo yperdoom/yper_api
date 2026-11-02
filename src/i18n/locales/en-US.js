@@ -5,6 +5,22 @@ export const values = Object.freeze({
 });
 
 export default Object.freeze({
+  BANK_DATA_INVALID: 'Incomplete or unsupported bank data. No partial changes were applied.',
+  BANK_PROVIDER_UNAVAILABLE: 'Could not query Pluggy. Check provider configuration and authorization.',
+  BANK_REPLICA_REQUIRED: 'Import requires a MongoDB replica set (such as Atlas) for safe writes.',
+  BANK_IDENTITY_CONFLICT: 'Conflicting bank identifiers. Import stopped for review.',
+  BANK_TRANSFER_INVALID: 'Select posted transactions from different accounts with the same amount.',
+  BANK_TRANSFER_DATE: 'Transfers with different dates require dedicated handling. Keep for review.',
+  BANK_MATCH_INVALID: 'The entry must be direct and match the account, direction and amount. Check the occurrence.',
+  BANK_RULE_INVALID: 'This description is generic or the rule scope is invalid.',
+  BANK_MANAGED_ENTRY: 'This entry is reconciled with the bank. Undo its decision in Bank connections before changing it.',
+  BANK_NOT_CONFIGURED: 'The personal Pluggy connection is not configured for this user yet.',
+  BANK_ALREADY_LINKED: 'This account is already linked. Reuse its link to prevent duplicates.',
+  BANK_SYNC_BUSY: 'Reading is in progress, paused or unavailable. Wait one minute before retrying.',
+  FINANCE_CHANGED: 'This record changed. Refresh the page and try again.',
+  FINANCE_HISTORY_LOCKED: 'This plan has modified occurrences. Preserve its history: adjust occurrence states before editing the plan.',
+  FINANCE_ACCOUNT_USED: 'This account has entries or estimates and cannot be deleted.',
+  FINANCE_TOO_LARGE: 'This version supports up to 2,000 plans per user.',
   PUSH_NOT_CONFIGURED: 'Notifications have not been configured on the server yet.',
   PUSH_TEST_UNAVAILABLE: 'Device unavailable or recently tested. Wait one minute.',
   PUSH_SEND_FAILED: 'Could not send. Check the configuration or enable this device again.',

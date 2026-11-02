@@ -26,7 +26,7 @@ const allowedOrigins = () =>
  * terminam de registrar no listen() ou num await app.ready().
  */
 export function buildApp(options = {}) {
-  const { pushSender = sendPush, ...fastifyOptions } = options;
+  const { pushSender = sendPush, bankProvider, ...fastifyOptions } = options;
   const app = Fastify({
     logger: false,
     // Sem isto /customers/ nao casa com /customers, que era o comportamento anterior.
@@ -37,6 +37,7 @@ export function buildApp(options = {}) {
   // Declarar o campo antes deixa a shape do request estavel para a V8.
   app.decorateRequest('user', null);
   app.decorate('pushSender', pushSender);
+  app.decorate('bankProvider', bankProvider || null);
 
   // O parser nativo recusa corpo vazio com content-type json, e e comum um cliente
   // mandar o header em DELETE ou em POST de acao. Aqui isso vira um objeto vazio.

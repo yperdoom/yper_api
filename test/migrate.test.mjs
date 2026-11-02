@@ -5,6 +5,13 @@
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
+
+// Fail before starting any subprocess if a fixed URI would bypass test isolation.
+const migrationSource = readFileSync(new URL('../scripts/migrate.mjs', import.meta.url), 'utf8');
+assert.match(migrationSource, /const uri = process\.env\.MONGODB_URI;/);
+assert.doesNotMatch(migrationSource, /mongodb(?:\+srv)?:\/\//);
 
 const mongo = await MongoMemoryServer.create();
 const uri = mongo.getUri();
