@@ -27,7 +27,15 @@ export function normalizeMovement(raw, externalId) {
   if (!validDate(date)) throw httpError(502, 'BANK_DATA_INVALID');
   const signed = bankCents(raw.amount);
   if (!signed || (signed < 0) !== (raw.type === 'DEBIT')) throw httpError(502, 'BANK_DATA_INVALID');
+  // Compare ownership in memory; do not persist CPF/CNPJ or raw payment details.
+  const document = value => typeof value === 'string' ? value.replace(/\D/g, '') : '';
+  const payer = document(raw.paymentData?.payer?.documentNumber?.value);
+  const receiver = document(raw.paymentData?.receiver?.documentNumber?.value);
+  const complete = v => [11, 14].includes(v.length);
   return { aliases: [raw.id], providerId: typeof raw.providerId === 'string' ? raw.providerId.slice(0, 200) : '',
+    operationType: typeof raw.operationType === 'string' ? raw.operationType.slice(0, 80) : '',
+    transferReference: typeof raw.paymentData?.referenceNumber === 'string' ? raw.paymentData.referenceNumber.slice(0, 200) : '',
+    sameOwner: complete(payer) && complete(receiver) ? payer === receiver : null,
     description: raw.description, pattern: normalizedPattern(raw.description), date,
     amountCents: Math.abs(signed), direction: raw.type === 'DEBIT' ? 'expense' : 'income', bankStatus: raw.status };
 }

@@ -107,9 +107,15 @@ export default async function financeRoutes(app) {
     if (!validMonth(from) || ![3, 6, 12].includes(count) || !validMonth(addMonth(from, count - 1)) || !validDate(today)) fail('period');
     const user = r.user.userId;
     if (r.query.account) await owned(Account, user, r.query.account);
-    const [accounts, entries, estimates] = await Promise.all([Account.find({ user }).lean(), Entry.find({ user }).limit(2001).lean(), Estimate.find({ user }).lean()]);
+    const [accounts, entries, estimates, bankLinks] = await Promise.all([Account.find({ user }).lean(), Entry.find({ user }).limit(2001).lean(), Estimate.find({ user }).lean(), BankLink.find({ user }).lean()]);
     if (entries.length > 2000) throw httpError(400, 'FINANCE_TOO_LARGE');
     const bankPending = await BankMovement.countDocuments({ user, state: { $in: ['review', 'changed'] } });
-    return { ...projectFinance({ accounts, entries, estimates, from, count, today, accountId: r.query.account || '' }), bankPending };
+    const projection = projectFinance({ accounts, entries, estimates, from, count, today, accountId: r.query.account || '' });
+    projection.accounts = projection.accounts.map(account => {
+      const link = bankLinks.find(l => String(l.account) === String(account._id));
+      return link ? { ...account, bankBalanceCents: link.balanceCents ?? null, bankBalanceAt: link.balanceAt,
+        bankLastSuccess: link.lastSuccess, bankError: link.error || '' } : account;
+    });
+    return { ...projection, bankPending };
   });
 }

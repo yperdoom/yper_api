@@ -18,13 +18,13 @@
     "test:boot": "node test/boot.test.mjs",
     "test:users": "node test/users.test.mjs",
     "test:i18n": "node test/i18n.test.mjs",
-    "test:all": "node test/cors.test.mjs && node test/smoke.test.mjs && node test/users.test.mjs && node test/i18n.test.mjs && node test/contract.test.mjs && node test/boot.test.mjs && node test/migrate.test.mjs && node test/muscle-groups.test.mjs && node test/training-progress.test.mjs && node test/notifications.test.mjs && node test/finance.test.mjs && node test/banking.test.mjs",
+    "test:all": "node test/cors.test.mjs && node test/smoke.test.mjs && node test/users.test.mjs && node test/i18n.test.mjs && node test/contract.test.mjs && node test/boot.test.mjs && node test/migrate.test.mjs && node test/muscle-groups.test.mjs && node test/training-progress.test.mjs && node test/notifications.test.mjs && node test/finance.test.mjs && node test/banking.test.mjs && node test/banking-automation.test.mjs",
     "test:coverage": "c8 yarn test:all",
     "test:muscle-groups": "node test/muscle-groups.test.mjs",
     "test:training-progress": "node test/training-progress.test.mjs",
     "test:notifications": "node test/notifications.test.mjs",
     "test:finance": "node test/finance.test.mjs",
-    "test:banking": "node test/banking.test.mjs"
+    "test:banking": "node test/banking.test.mjs && node test/banking-automation.test.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",

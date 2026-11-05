@@ -13,6 +13,8 @@ const movement = new Schema({
   user: owner, link: { type: Schema.Types.ObjectId, required: true }, account: Schema.Types.ObjectId,
   aliases: [String], providerId: String, description: String, pattern: String,
   date: String, amountCents: Number, direction: String, bankStatus: String,
+  operationType: String, transferReference: String, sameOwner: { type: Boolean, default: null },
+  manualHold: { type: Boolean, default: false }, reviewReason: String,
   category: { type: String, default: '' }, categorySource: String, rule: Schema.Types.ObjectId,
   state: { type: String, enum: ['review', 'accepted', 'ignored', 'changed'], default: 'review' },
   entry: Schema.Types.ObjectId, month: String, peer: Schema.Types.ObjectId,
@@ -27,7 +29,9 @@ const rule = new Schema({
 }, { timestamps: true });
 rule.index({ user: 1, pattern: 1, direction: 1, scope: 1 }, { unique: true });
 const audit = new Schema({ user: owner, movement: Schema.Types.ObjectId, action: String, detail: Schema.Types.Mixed }, { timestamps: true });
+const guard = new Schema({ user: { ...owner, unique: true }, revision: { type: Number, default: 0 } });
 export const BankLink = mongoose.models.BankLink || mongoose.model('BankLink', link);
 export const BankMovement = mongoose.models.BankMovement || mongoose.model('BankMovement', movement);
 export const BankRule = mongoose.models.BankRule || mongoose.model('BankRule', rule);
 export const BankAudit = mongoose.models.BankAudit || mongoose.model('BankAudit', audit);
+export const BankSyncGuard = mongoose.models.BankSyncGuard || mongoose.model('BankSyncGuard', guard);

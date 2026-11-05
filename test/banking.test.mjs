@@ -57,12 +57,17 @@ try {
   assert.equal((await call('POST', '/banking/links', { externalId: sourceAccounts[0].externalId, account: accounts[0]._id })).statusCode, 409);
   const sync = await call('POST', `/banking/links/${links[0]._id}/sync`, {});
   assert.equal(sync.statusCode, 200, sync.body);
+  const projection = (await call('GET', `/projection?from=${today.slice(0, 7)}&count=3&today=${today}`)).json();
+  const connected = projection.accounts.find(a => a._id === accounts[0]._id);
+  assert.equal(connected.bankBalanceCents, 100000, 'reported balance is a snapshot, not a new opening balance plus transactions');
+  assert.equal(connected.currentBalanceCents, 88000, 'ledger-based projections remain separate from the reported balance');
   assert.equal((await call('POST', `/banking/links/${links[0]._id}/sync`, {})).statusCode, 409);
   await ingestBankRows(links[0], [normalizeMovement(raw('first'), 'nubank-external')]);
   assert.equal(await BankMovement.countDocuments(), 1, 'repeated sync is idempotent');
   let row = await BankMovement.findOne();
   const decision = (row, body) => call('POST', `/banking/movements/${row._id}/decision`, { revision: row.revision, ...body });
-  const accepted = await decision(row, { action: 'new', category: 'Academia', remember: true, scope: 'all' });
+  assert.equal(row.state, 'accepted', 'sync automatically includes confirmed, unambiguous transactions');
+  const accepted = await call('POST', '/banking/categorize', { items: [{ id: String(row._id), revision: row.revision }], category: 'Academia', remember: true, scope: 'all' });
   assert.equal(accepted.statusCode, 200, accepted.body);
   assert.equal((await decision(row, { action: 'new', category: 'Academia' })).statusCode, 409);
   assert.equal(await FinanceEntry.countDocuments(), 1);
@@ -134,6 +139,11 @@ try {
   assert.equal(await BankMovement.countDocuments(), before);
   assert.equal((await BankLink.findById(links[0]._id)).balanceCents, 100000);
   assert.ok((await BankLink.findById(links[0]._id)).error);
+  const all = await call('POST', '/banking/sync', {});
+  assert.equal(all.statusCode, 200);
+  assert.equal(all.json().results.length, 3);
+  assert.ok(all.json().results.some(r => r.status === 'error'));
+  assert.equal(await BankMovement.countDocuments(), before, 'partial all-account failure preserves previous data');
   // Isolation: another authenticated Yper user cannot read or claim the personal provider items.
   await app.inject({ method: 'POST', url: '/auth/users', headers, payload: { email: 'otherbank@test.com', password: 'secret123', apps: ['yper'] } });
   const login = (await app.inject({ method: 'POST', url: '/auth/login', payload: { email: 'otherbank@test.com', password: 'secret123' } })).json();
@@ -143,6 +153,7 @@ try {
   assert.equal((await call('POST', '/banking/discover', {}, otherHeaders)).statusCode, 503);
   assert.equal((await call('GET', `/banking/movements/${out._id}/candidates`, undefined, otherHeaders)).statusCode, 404);
   assert.equal((await call('POST', `/banking/movements/${out._id}/decision`, { action: 'undo', revision: 1 }, otherHeaders)).statusCode, 404);
+  assert.equal((await call('POST', '/banking/categorize', { items: [{ id: String(out._id), revision: 1 }], category: 'Forbidden' }, otherHeaders)).statusCode, 404);
   assert.ok(await BankAudit.countDocuments() >= 8);
   console.log('Banking: adapter, idempotency, rules, ledger reconciliation, transfers, concurrency and isolation passed.');
 } finally { await app.close(); await mongoose.disconnect(); await mongo.stop(); }
