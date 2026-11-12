@@ -15,6 +15,14 @@ function cents(value, field, signed = false) {
 function choose(value, values, field) { if (!values.includes(value)) fail(field); return value; }
 function day(value, field) { if (!validDate(value)) fail(field); return value; }
 function revision(value) { if (!Number.isInteger(value) || value < 0) fail('revision'); return value; }
+// The reported balance already includes that day's movements, so it opens the ledger on the following day.
+function bankAnchored(account, links) {
+  const link = links.find(l => String(l.account) === String(account._id));
+  if (account.openingBalanceCents != null || link?.balanceCents == null || !link.balanceAt) return account;
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(link.balanceAt));
+  const next = new Date(Date.parse(`${day}T12:00:00Z`) + 86400000).toISOString().slice(0, 10);
+  return { ...account, openingBalanceCents: link.balanceCents, openingDate: next, balanceSource: 'bank' };
+}
 async function owned(Model, user, id) {
   if (typeof id !== 'string' || !/^[a-f\d]{24}$/i.test(id)) fail('id');
   const doc = await Model.findOne({ _id: id, user }).lean();
@@ -110,7 +118,7 @@ export default async function financeRoutes(app) {
     const [accounts, entries, estimates, bankLinks] = await Promise.all([Account.find({ user }).lean(), Entry.find({ user }).limit(2001).lean(), Estimate.find({ user }).lean(), BankLink.find({ user }).lean()]);
     if (entries.length > 2000) throw httpError(400, 'FINANCE_TOO_LARGE');
     const bankPending = await BankMovement.countDocuments({ user, state: { $in: ['review', 'changed'] } });
-    const projection = projectFinance({ accounts, entries, estimates, from, count, today, accountId: r.query.account || '' });
+    const projection = projectFinance({ accounts: accounts.map(account => bankAnchored(account, bankLinks)), entries, estimates, from, count, today, accountId: r.query.account || '' });
     projection.accounts = projection.accounts.map(account => {
       const link = bankLinks.find(l => String(l.account) === String(account._id));
       return link ? { ...account, bankBalanceCents: link.balanceCents ?? null, bankBalanceAt: link.balanceAt,

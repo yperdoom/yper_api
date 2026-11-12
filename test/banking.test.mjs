@@ -61,6 +61,17 @@ try {
   const connected = projection.accounts.find(a => a._id === accounts[0]._id);
   assert.equal(connected.bankBalanceCents, 100000, 'reported balance is a snapshot, not a new opening balance plus transactions');
   assert.equal(connected.currentBalanceCents, 88000, 'ledger-based projections remain separate from the reported balance');
+  // Without an opening balance, the last reported bank balance anchors the projection from the next day on.
+  await FinanceAccount.updateOne({ _id: accounts[1]._id }, { openingBalanceCents: null });
+  const later = projection.months[2].month;
+  await FinanceEntry.create({ user, account: accounts[1]._id, description: 'Plano', type: 'expense', amountCents: 5000, date: `${later}-15`, repeat: 'once', category: 'Casa' });
+  const anchored = (await call('GET', `/projection?from=${today.slice(0, 7)}&count=3&today=${today}`)).json();
+  const balanceOf = (month, id) => month.balances.find(b => b.id === id).balanceCents;
+  assert.equal(anchored.accounts.find(a => a._id === accounts[1]._id).balanceSource, 'bank');
+  assert.equal(balanceOf(anchored.months[1], accounts[1]._id), 100000);
+  assert.equal(balanceOf(anchored.months[2], accounts[1]._id), 95000);
+  assert.equal(anchored.accounts.find(a => a._id === accounts[0]._id).balanceSource, undefined, 'a manual opening balance takes precedence');
+  await FinanceEntry.deleteOne({ description: 'Plano' }); await FinanceAccount.updateOne({ _id: accounts[1]._id }, { openingBalanceCents: 100000 });
   assert.equal((await call('POST', `/banking/links/${links[0]._id}/sync`, {})).statusCode, 409);
   await ingestBankRows(links[0], [normalizeMovement(raw('first'), 'nubank-external')]);
   assert.equal(await BankMovement.countDocuments(), 1, 'repeated sync is idempotent');
