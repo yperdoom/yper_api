@@ -59,6 +59,13 @@ async function applyAutomatic(user, session) {
   const entries = await Entry.find({ user }).session(session);
   const rules = await Rule.find({ user, active: true }).session(session).lean();
   const stats = { imported: 0, transfers: 0, categorized: 0, updated: 0 };
+  // Writes are collected and flushed in bulk: one round trip per collection instead of several per movement.
+  const audits = []; const prepared = new Map();
+  const note = (row, action, detail) => audits.push({ user, movement: row._id, action, detail });
+  const ready = async accountId => {
+    const key = String(accountId);
+    if (!prepared.has(key)) prepared.set(key, await readyAccount(accountId, user, session));
+  };
   const active = row => activeIds.some(id => String(id) === String(row.link));
   const eligible = row => active(row) && row.state === 'review' && !row.manualHold && row.bankStatus === 'POSTED' && row.date <= bankToday();
   for (const row of rows) {
@@ -69,9 +76,8 @@ async function applyAutomatic(user, session) {
         const previous = { amountCents: entry.amountCents, date: entry.date };
         entry.amountCents = row.amountCents; entry.date = row.date; entry.description = row.description.slice(0, 160);
         entry.overrides = [{ month: row.date.slice(0, 7), status: 'paid', paidDate: row.date }]; entry.revision++;
-        await entry.save({ session });
-        row.state = 'accepted'; row.reviewReason = ''; row.revision++; await row.save({ session });
-        await audit(user, row, 'auto-update', { previous, amountCents: row.amountCents, date: row.date }, session); stats.updated++;
+        row.state = 'accepted'; row.reviewReason = ''; row.revision++;
+        note(row, 'auto-update', { previous, amountCents: row.amountCents, date: row.date }); stats.updated++;
       }
     }
     if (active(row) && row.state === 'accepted' && !row.category && ['new', 'auto'].includes(row.decision)) {
@@ -79,8 +85,8 @@ async function applyAutomatic(user, session) {
       const entry = rule && entries.find(e => String(e._id) === String(row.entry) && e.bankSource === String(row._id));
       if (entry) {
         row.category = rule.category; row.categorySource = 'rule'; row.rule = rule._id; row.revision++;
-        entry.category = rule.category; entry.revision++; await entry.save({ session }); await row.save({ session });
-        await audit(user, row, 'auto-category', { category: rule.category, rule: rule._id }, session); stats.categorized++;
+        entry.category = rule.category; entry.revision++;
+        note(row, 'auto-category', { category: rule.category, rule: rule._id }); stats.categorized++;
       }
     }
     if (!eligible(row)) continue;
@@ -107,32 +113,35 @@ async function applyAutomatic(user, session) {
         && candidateOccurrences(e, peer).some(item => item.amountCents === peer.amountCents));
       if (!peerManual && entries.length < 2000) {
         const debit = row.direction === 'expense' ? row : peer; const credit = row.direction === 'income' ? row : peer;
-        await readyAccount(debit.account, user, session); await readyAccount(credit.account, user, session);
-        const [entry] = await Entry.create([{ user, bankSource: String(debit._id), description: debit.description.slice(0, 160),
+        await ready(debit.account); await ready(credit.account);
+        const entry = new Entry({ user, bankSource: String(debit._id), description: debit.description.slice(0, 160),
           type: 'transfer', account: debit.account, toAccount: credit.account, amountCents: debit.amountCents, date: debit.date,
-          overrides: [{ month: debit.date.slice(0, 7), status: 'paid', paidDate: debit.date }] }], { session });
+          overrides: [{ month: debit.date.slice(0, 7), status: 'paid', paidDate: debit.date }] });
         entries.push(entry);
         for (const [movement, other] of [[row, peer], [peer, row]]) {
           movement.entry = entry._id; movement.peer = other._id; movement.state = 'accepted'; movement.decision = 'transfer'; movement.reviewReason = ''; movement.revision++;
-          await movement.save({ session }); await audit(user, movement, 'auto-transfer', { entry: entry._id }, session);
+          note(movement, 'auto-transfer', { entry: entry._id });
         }
         stats.transfers++; continue;
       }
     }
     if (!hold && entries.length >= 2000) hold = 'limit';
     if (hold) {
-      if (row.reviewReason !== hold) { row.reviewReason = hold; row.revision++; await row.save({ session }); }
+      if (row.reviewReason !== hold) { row.reviewReason = hold; row.revision++; }
       continue;
     }
-    await readyAccount(row.account, user, session);
+    await ready(row.account);
     const rule = !row.category && ruleFor(row, rules);
     if (rule) { row.category = rule.category; row.categorySource = 'rule'; row.rule = rule._id; }
-    const [entry] = await Entry.create([{ user, bankSource: String(row._id), description: row.description.slice(0, 160),
+    const entry = new Entry({ user, bankSource: String(row._id), description: row.description.slice(0, 160),
       type: row.direction, account: row.account, category: row.category || '', amountCents: row.amountCents, date: row.date,
-      overrides: [{ month: row.date.slice(0, 7), status: 'paid', paidDate: row.date }] }], { session });
+      overrides: [{ month: row.date.slice(0, 7), status: 'paid', paidDate: row.date }] });
     entries.push(entry); row.entry = entry._id; row.state = 'accepted'; row.decision = 'auto'; row.reviewReason = ''; row.revision++;
-    await row.save({ session }); await audit(user, row, 'auto-import', { entry: entry._id }, session); stats.imported++;
+    note(row, 'auto-import', { entry: entry._id }); stats.imported++;
   }
+  await Entry.bulkSave(entries, { session });
+  await Movement.bulkSave(rows, { session });
+  if (audits.length) await BankAudit.insertMany(audits, { session });
   return stats;
 }
 
@@ -142,10 +151,13 @@ export async function ingestBankRows(link, rows, { automatic = false } = {}) {
     if (automatic) await BankSyncGuard.updateOne({ user: link.user }, { $inc: { revision: 1 } }, { session });
     const rules = await Rule.find({ user: link.user, active: true }).session(session).lean();
     let added = 0;
+    // One read for the link's history; identity lookups then happen in memory.
+    const known = await Movement.find({ user: link.user, link: link._id }).session(session);
+    const byAlias = new Map(); const byProvider = new Map();
+    const index = doc => { for (const alias of doc.aliases) byAlias.set(alias, doc); if (doc.providerId) byProvider.set(doc.providerId, doc); };
+    known.forEach(index);
     for (const row of rows) {
-      const alternatives = [{ aliases: row.aliases[0] }];
-      if (row.providerId) alternatives.push({ providerId: row.providerId });
-      const matches = await Movement.find({ user: link.user, link: link._id, $or: alternatives }).session(session);
+      const matches = [...new Set([byAlias.get(row.aliases[0]), row.providerId && byProvider.get(row.providerId)].filter(Boolean))];
       if (matches.length > 1) throw httpError(409, 'BANK_IDENTITY_CONFLICT');
       const existing = matches[0];
       if (existing) {
@@ -160,15 +172,16 @@ export async function ingestBankRows(link, rows, { automatic = false } = {}) {
           // Keep the original manual classification and the accepted ledger until explicit review.
           Object.assign(existing, row, { aliases, revision: existing.revision + 1 });
           if (rule) Object.assign(existing, { category: rule.category, categorySource: 'rule', rule: rule._id });
-          await existing.save({ session });
+          index(existing);
         }
         continue;
       }
       const data = { ...row, user: link.user, link: link._id, account: link.account };
       const rule = ruleFor(data, rules);
       if (rule) Object.assign(data, { category: rule.category, categorySource: 'rule', rule: rule._id });
-      await Movement.create([data], { session }); added++;
+      const created = new Movement(data); known.push(created); index(created); added++;
     }
+    await Movement.bulkSave(known, { session });
     return { added, ...(automatic ? await applyAutomatic(link.user, session) : {}) };
   });
 }

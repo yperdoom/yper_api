@@ -109,5 +109,18 @@ try {
   assert.equal(String(ownOut.entry), String(ownIn.entry), 'legs named after the owner pair within one day');
   assert.equal((await FinanceEntry.findById(ownOut.entry)).type, 'transfer');
   delete process.env.OPEN_FINANCE_OWNER_NAME;
+  // Database round trips per sync must not grow with the bank history (Atlas aborts transactions after 60s).
+  const many = Array.from({ length: 300 }, (_, i) => source(`bulk-${i}`, `Loja numero ${i}`, -(i + 1)));
+  let operations = 0;
+  mongoose.set('debug', () => { operations++; });
+  const bulk = await sync(2, many);
+  const firstSync = operations; operations = 0;
+  await sync(2, many);
+  mongoose.set('debug', false);
+  assert.equal(bulk.imported, 300);
+  assert.equal(await FinanceEntry.countDocuments({ user, bankSource: String((await row('bulk-299'))._id) }), 1);
+  assert.equal(await BankAudit.countDocuments({ user, action: 'auto-import', movement: (await row('bulk-0'))._id }), 1);
+  assert.ok(firstSync < 40, `first sync used ${firstSync} database operations`);
+  assert.ok(operations < 40, `repeat sync used ${operations} database operations`);
   console.log('Banking automation: import, corrections, durable undo, categories, rollback, ownership, transfers, duplicates and concurrency passed.');
 } finally { await mongoose.disconnect(); await mongo.stop(); }
