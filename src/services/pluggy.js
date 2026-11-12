@@ -92,6 +92,16 @@ export function createPluggyProvider(fetcher = fetch) {
       }
       return accounts;
     },
+    async bills(externalId) {
+      const key = await auth();
+      const page = await request(`/bills?${new URLSearchParams({ accountId: externalId, pageSize: '500' })}`, key);
+      if (!Array.isArray(page.results) || page.totalPages > 1) throw httpError(502, 'BANK_DATA_INVALID');
+      const day = value => typeof value === 'string' && validDate(value.slice(0, 10)) ? value.slice(0, 10) : '';
+      // Bill totals may include fractional cents from interest; round to the charged amount.
+      return page.results.filter(b => typeof b.id === 'string' && day(b.billClosingDate)).map(b => ({ id: b.id.slice(0, 100),
+        closingDate: day(b.billClosingDate), dueDate: day(b.dueDate),
+        totalCents: typeof b.totalAmount === 'number' ? bankCents(Math.round(b.totalAmount * 100) / 100) : null }));
+    },
     async movements(externalId, kind = 'account') {
       const normalize = kind === 'card' ? normalizeCardMovement : normalizeMovement;
       const key = await auth(); const rows = []; const cursors = new Set(); let after;

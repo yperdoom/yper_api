@@ -61,9 +61,10 @@ export default async function bankingRoutes(app) {
       const external = accounts.find(a => a.externalId === link.externalId && a.itemId === link.itemId);
       if (!external) throw httpError(502, 'BANK_DATA_INVALID');
       const rows = await provider.movements(link.externalId, link.kind);
+      const bills = link.kind === 'card' ? await provider.bills(link.externalId) : undefined;
       const result = await ingestBankRows(link, rows, { automatic: true });
       await BankLink.updateOne({ _id: link._id, user, lease }, { $set: { lease: null, lastSuccess: new Date(), error: '',
-        balanceCents: external.balanceCents, balanceAt: external.balanceAt } });
+        balanceCents: external.balanceCents, balanceAt: external.balanceAt, ...(bills ? { bills } : {}) } });
       return result;
     } catch (err) {
       await BankLink.updateOne({ _id: link._id, user, lease }, { $set: { lease: null, error: 'BANK_SYNC_FAILED' } });

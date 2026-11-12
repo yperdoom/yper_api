@@ -4,7 +4,7 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { buildApp } from '../src/app.js';
 import { BankLink, BankMovement, BankRule, BankAudit } from '../src/models/yper/Banking.js';
 import { FinanceAccount, FinanceEntry } from '../src/models/yper/Finance.js';
-import { createPluggyProvider, normalizeMovement, bankCents } from '../src/services/pluggy.js';
+import { createPluggyProvider, normalizeMovement, normalizeCardMovement, bankCents } from '../src/services/pluggy.js';
 import { ingestBankRows, bankToday } from '../src/services/banking.js';
 
 const today = bankToday();
@@ -40,9 +40,15 @@ process.env.PLUGGY_CLIENT_ID = 'test'; process.env.PLUGGY_CLIENT_SECRET = 'test'
 process.env.PLUGGY_ITEMS_JSON = JSON.stringify([{ id: 'nubank', bank: 'Nubank' }, { id: 'inter', bank: 'Inter' }, { id: 'mp', bank: 'Mercado Pago' }]);
 let failRead = false;
 const sourceAccounts = ['nubank', 'inter', 'mp'].map((itemId, index) => ({ itemId, externalId: `${itemId}-external`, bank: ['Nubank','Inter','Mercado Pago'][index], name: itemId, balanceCents: 100000, balanceAt: new Date() }));
-const provider = { accounts: async () => sourceAccounts, movements: async externalId => {
+const thisMonth = today.slice(0, 7);
+const nextMonth = new Date(Date.UTC(Number(thisMonth.slice(0, 4)), Number(thisMonth.slice(5)), 15)).toISOString().slice(0, 7);
+const cardRaw = (id, description, amount, date, status, meta) => normalizeCardMovement({ id, accountId: 'nubank-card', description, amount,
+  date: `${date}T00:00:00.000Z`, type: 'DEBIT', status, currencyCode: 'BRL', creditCardMetadata: meta }, 'nubank-card');
+let cardRows = [];
+const cardBills = [{ id: 'bill-now', closingDate: `${thisMonth}-09`, dueDate: `${thisMonth}-16`, totalCents: 50000 }];
+const provider = { bills: async () => cardBills, accounts: async () => sourceAccounts, movements: async externalId => {
   if (failRead) throw new Error('synthetic-failure');
-  if (externalId === 'nubank-card') return [];
+  if (externalId === 'nubank-card') return cardRows;
   return [normalizeMovement(raw('first', externalId), externalId)];
 } };
 const app = buildApp({ bankProvider: provider });
@@ -183,11 +189,23 @@ try {
   assert.equal(card.kind, 'card');
   const cardAccount = await FinanceAccount.findById(card.account);
   assert.equal(cardAccount.kind, 'card'); assert.equal(cardAccount.name, 'Cartão Nubank');
-  const movementsBefore = await BankMovement.countDocuments();
+  const pneu = { paymentType: 'INSTALLMENT', totalInstallments: 10, purchaseDate: `${thisMonth}-01T10:00:00Z` };
+  cardRows = [cardRaw('pneu-3', 'Pneu Store', 316.44, today, 'POSTED', { ...pneu, installmentNumber: 3, billId: 'bill-now' }),
+    cardRaw('pneu-4', 'Pneu Store', 316.44, `${nextMonth}-03`, 'PENDING', { ...pneu, installmentNumber: 4 })];
   const cardSync = await call('POST', `/banking/links/${card._id}/sync`, {});
   assert.equal(cardSync.statusCode, 200, cardSync.body);
-  assert.equal(await BankMovement.countDocuments(), movementsBefore);
+  assert.equal((await BankLink.findById(card._id)).bills.length, 1, 'card bills are stored on sync');
+  // Bills group purchases by the bill they close in; future installments use the card's closing day.
+  const now = (await call('GET', `/cards?month=${thisMonth}`)).json().cards;
+  assert.equal(now.length, 1); assert.equal(now[0].name, 'Cartão Nubank');
+  assert.equal(now[0].bill.closingDate, `${thisMonth}-09`); assert.equal(now[0].bill.totalCents, 50000);
+  assert.deepEqual(now[0].items.map(i => [i.description, i.installmentNumber, i.totalInstallments, i.amountCents, i.remainingCents]), [['Pneu Store', 3, 10, 31644, 31644 * 7]]);
+  const upcoming = (await call("GET", `/cards?month=${nextMonth}`)).json().cards;
+  assert.equal(upcoming[0].bill.closingDate, `${nextMonth}-09`); assert.equal(upcoming[0].bill.totalCents, 31644, 'an open bill totals its items');
+  assert.deepEqual(upcoming[0].items.map(i => i.installmentNumber), [4]);
+  assert.equal((await call('GET', '/cards?month=bad')).statusCode, 400);
   assert.equal((await BankLink.findById(card._id)).balanceCents, -345692);
-  assert.equal((await call('PUT', `/accounts/${cardAccount._id}`, { ...cardAccount.toObject(), _id: String(cardAccount._id) })).statusCode, 200, 'card accounts stay editable');
+  const currentCard = await FinanceAccount.findById(cardAccount._id);
+  assert.equal((await call('PUT', `/accounts/${cardAccount._id}`, { ...currentCard.toObject(), _id: String(cardAccount._id) })).statusCode, 200, 'card accounts stay editable');
   console.log('Banking: adapter, idempotency, rules, ledger reconciliation, transfers, concurrency and isolation passed.');
 } finally { await app.close(); await mongoose.disconnect(); await mongo.stop(); }

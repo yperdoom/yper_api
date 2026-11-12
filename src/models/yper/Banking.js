@@ -6,6 +6,7 @@ const link = new Schema({
   account: { type: Schema.Types.ObjectId, ref: 'FinanceAccount', required: true },
   active: { type: Boolean, default: true }, lastAttempt: Date, lastSuccess: Date,
   error: String, lease: Date, balanceCents: Number, balanceAt: Date,
+  bills: [{ _id: false, id: String, closingDate: String, dueDate: String, totalCents: Number }],
 }, { timestamps: true });
 link.index({ user: 1, externalId: 1 }, { unique: true });
 link.index({ user: 1, account: 1 }, { unique: true });

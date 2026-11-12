@@ -15,6 +15,26 @@ function cents(value, field, signed = false) {
 function choose(value, values, field) { if (!values.includes(value)) fail(field); return value; }
 function day(value, field) { if (!validDate(value)) fail(field); return value; }
 function revision(value) { if (!Number.isInteger(value) || value < 0) fail('revision'); return value; }
+const monthEnd = (month, day) => `${month}-${String(Math.min(day, new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate())).padStart(2, '0')}`;
+// Purchases belong to the bill they closed in; open and future ones to the next closing on the card's usual day.
+function cardBill(link, account, movements, month) {
+  const bills = [...(link.bills || [])].sort((a, b) => a.closingDate.localeCompare(b.closingDate));
+  const closingDay = Number(bills.at(-1)?.closingDate.slice(8) || 31);
+  const billMonth = m => {
+    const bill = m.billId && bills.find(b => b.id === m.billId);
+    if (bill) return bill.closingDate.slice(0, 7);
+    return Number(m.date.slice(8)) <= closingDay ? m.date.slice(0, 7) : addMonth(m.date.slice(0, 7), 1);
+  };
+  const items = movements.filter(m => m.decision !== 'transfer' && billMonth(m) === month).sort((a, b) => a.date.localeCompare(b.date))
+    .map(m => ({ id: String(m._id), description: m.description, category: m.category, date: m.date, purchaseDate: m.purchaseDate,
+      installmentNumber: m.installmentNumber, totalInstallments: m.totalInstallments,
+      amountCents: m.direction === 'expense' ? m.amountCents : -m.amountCents,
+      remainingCents: m.installmentNumber ? m.amountCents * (m.totalInstallments - m.installmentNumber) : 0 }));
+  const bill = bills.find(b => b.closingDate.slice(0, 7) === month);
+  return { id: String(link._id), account: String(link.account), name: account?.name || link.name, items,
+    bill: { closingDate: bill?.closingDate || monthEnd(month, closingDay), dueDate: bill?.dueDate || '',
+      totalCents: bill?.totalCents ?? items.reduce((sum, i) => sum + i.amountCents, 0) } };
+}
 // The reported balance already includes that day's movements, so it opens the ledger on the following day.
 function bankAnchored(account, links) {
   const link = links.find(l => String(l.account) === String(account._id));
@@ -109,6 +129,15 @@ export default async function financeRoutes(app) {
       return { ok: true };
     });
   }
+  app.get('/cards', async r => {
+    const month = r.query.month; if (!validMonth(month)) fail('month');
+    const user = r.user.userId;
+    const links = await BankLink.find({ user, kind: 'card' }).lean();
+    const [accounts, movements] = await Promise.all([Account.find({ user, _id: { $in: links.map(l => l.account) } }).lean(),
+      BankMovement.find({ user, link: { $in: links.map(l => l._id) }, state: 'accepted' }).lean()]);
+    return { cards: links.map(link => cardBill(link, accounts.find(a => String(a._id) === String(link.account)),
+      movements.filter(m => String(m.link) === String(link._id)), month)) };
+  });
   app.get('/projection', async r => {
     const from = r.query.from; const count = Number(r.query.count || 12);
     const today = r.query.today || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
