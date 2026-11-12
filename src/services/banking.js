@@ -106,7 +106,10 @@ async function applyAutomatic(user, session) {
       && p.direction === row.direction && p.pattern === row.pattern && (p.amountCents === row.amountCents ? near(p.date, row.date) : p.date === row.date)
       && !(p.transferReference && row.transferReference && p.transferReference !== row.transferReference)
       && !(p.providerId && row.providerId && p.providerId !== row.providerId));
-    let hold = manualMatches.length ? 'existing' : reason || (duplicate ? 'duplicate' : '');
+    // An own transfer still unpaired after 3 days comes from an account that is not connected (e.g. salary).
+    const external = reason === 'transfer' && !peers.length && (row.sameOwner === true || mentionsOwner(row))
+      && Date.parse(bankToday()) - Date.parse(row.date) > 3 * 86400000;
+    let hold = manualMatches.length ? 'existing' : (external ? '' : reason) || (duplicate ? 'duplicate' : '');
     if (peers.length === 1 && !manualMatches.length && !duplicate) {
       const peer = peers[0];
       const peerManual = entries.some(e => !e.bankSource && (String(e.account) === String(peer.account) || String(e.toAccount) === String(peer.account))

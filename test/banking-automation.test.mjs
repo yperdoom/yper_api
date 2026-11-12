@@ -108,6 +108,12 @@ try {
   assert.equal(ownOut.decision, 'transfer'); assert.equal(ownIn.decision, 'transfer');
   assert.equal(String(ownOut.entry), String(ownIn.entry), 'legs named after the owner pair within one day');
   assert.equal((await FinanceEntry.findById(ownOut.entry)).type, 'transfer');
+  // An own transfer from an account that is not connected (e.g. salary) is a regular movement once no peer shows up in 3 days.
+  const older = new Date(Date.parse(`${today}T12:00:00Z`) - 5 * 86400000).toISOString().slice(0, 10);
+  await sync(0, [source('salary-own', 'Transferência Recebida|PEDRO HENRIQUE ANTUNES PINTO', 4645.27, { date: older })]);
+  const salaryOwn = await row('salary-own');
+  assert.equal(salaryOwn.state, 'accepted', 'unpaired own transfer older than 3 days is imported');
+  assert.equal((await FinanceEntry.findById(salaryOwn.entry)).type, 'income');
   delete process.env.OPEN_FINANCE_OWNER_NAME;
   // Database round trips per sync must not grow with the bank history (Atlas aborts transactions after 60s).
   const many = Array.from({ length: 300 }, (_, i) => source(`bulk-${i}`, `Loja numero ${i}`, -(i + 1)));
