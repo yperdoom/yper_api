@@ -24,6 +24,13 @@ const realAdapter = createPluggyProvider(async (url, options) => {
 });
 assert.equal((await realAdapter.movements('nubank-external')).length, 2);
 assert.ok(urls.at(-1).includes('accountId=nubank-external&after=a%2Bb%3D'));
+const cardAdapter = createPluggyProvider(async url => url.endsWith('/auth') ? { ok: true, json: async () => ({ apiKey: 'synthetic' }) }
+  : { ok: true, json: async () => ({ totalPages: 1, results: [
+    { id: 'checking', itemId: 'nubank', type: 'BANK', currencyCode: 'BRL', name: 'Conta', number: '1234', balance: 10 },
+    { id: 'card', itemId: 'nubank', type: 'CREDIT', subtype: 'CREDIT_CARD', currencyCode: 'BRL', name: 'Ultravioleta', number: '9876', balance: 3456.92 }] }) });
+const discovered = await cardAdapter.accounts([{ id: 'nubank', bank: 'Nubank' }]);
+assert.deepEqual(discovered.map(a => a.kind), ['account', 'card'], 'credit cards are discovered alongside accounts');
+assert.equal(discovered[1].balanceCents, -345692, 'card balance is a debt');
 const failingAdapter = createPluggyProvider(async () => ({ ok: false, json: async () => ({ secret: 'never-return' }) }));
 await assert.rejects(() => failingAdapter.accounts([]), e => e.code === 'BANK_PROVIDER_UNAVAILABLE' && !e.message.includes('never-return'));
 
@@ -166,5 +173,20 @@ try {
   assert.equal((await call('POST', `/banking/movements/${out._id}/decision`, { action: 'undo', revision: 1 }, otherHeaders)).statusCode, 404);
   assert.equal((await call('POST', '/banking/categorize', { items: [{ id: String(out._id), revision: 1 }], category: 'Forbidden' }, otherHeaders)).statusCode, 404);
   assert.ok(await BankAudit.countDocuments() >= 8);
+  // A card is linked to its own finance account of kind card, created on demand; its sync only refreshes the balance for now.
+  failRead = false;
+  sourceAccounts.push({ itemId: 'nubank', externalId: 'nubank-card', bank: 'Nubank', kind: 'card', name: 'Nubank · Cartão · 9876', balanceCents: -345692, balanceAt: new Date() });
+  const cardLink = await call('POST', '/banking/links', { externalId: 'nubank-card' });
+  assert.equal(cardLink.statusCode, 200, cardLink.body);
+  const card = await BankLink.findById(cardLink.json().id);
+  assert.equal(card.kind, 'card');
+  const cardAccount = await FinanceAccount.findById(card.account);
+  assert.equal(cardAccount.kind, 'card'); assert.equal(cardAccount.name, 'Cartão Nubank');
+  const movementsBefore = await BankMovement.countDocuments();
+  const cardSync = await call('POST', `/banking/links/${card._id}/sync`, {});
+  assert.equal(cardSync.statusCode, 200, cardSync.body);
+  assert.equal(await BankMovement.countDocuments(), movementsBefore);
+  assert.equal((await BankLink.findById(card._id)).balanceCents, -345692);
+  assert.equal((await call('PUT', `/accounts/${cardAccount._id}`, { ...cardAccount.toObject(), _id: String(cardAccount._id) })).statusCode, 200, 'card accounts stay editable');
   console.log('Banking: adapter, idempotency, rules, ledger reconciliation, transfers, concurrency and isolation passed.');
 } finally { await app.close(); await mongoose.disconnect(); await mongo.stop(); }

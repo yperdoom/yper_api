@@ -44,7 +44,7 @@ export default async function financeRoutes(app) {
   for (const method of ['post', 'put']) {
     app[method](`/accounts${method === 'put' ? '/:id' : ''}`, async r => {
       const b = r.body || {};
-      return { account: await save(Account, r, { name: text(b.name, 'name', true), kind: choose(b.kind, ['operational', 'reserve'], 'kind'),
+      return { account: await save(Account, r, { name: text(b.name, 'name', true), kind: choose(b.kind, ['operational', 'reserve', 'card'], 'kind'),
         openingDate: day(b.openingDate, 'openingDate'), openingBalanceCents: b.openingBalanceCents === null ? null : cents(b.openingBalanceCents, 'openingBalanceCents', true) }) };
     });
   }

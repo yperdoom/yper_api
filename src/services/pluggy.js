@@ -64,11 +64,13 @@ export function createPluggyProvider(fetcher = fetch) {
         if (!Array.isArray(page.results) || page.totalPages > 1) throw httpError(502, 'BANK_DATA_INVALID');
         for (const a of page.results) {
           if (a.itemId !== item.id || typeof a.id !== 'string') throw httpError(502, 'BANK_DATA_INVALID');
-          // Cards have a different sign convention and need a dedicated invoice model.
-          if (a.type !== 'BANK' || a.currencyCode !== 'BRL') continue;
-          accounts.push({ externalId: a.id, itemId: item.id, bank: item.bank,
-            name: `${item.bank} · ${String(a.name || 'Conta').slice(0, 80)} · ${String(a.number || '').slice(-4)}`,
-            balanceCents: a.balance == null ? null : bankCents(a.balance),
+          if (!['BANK', 'CREDIT'].includes(a.type) || a.currencyCode !== 'BRL') continue;
+          const kind = a.type === 'CREDIT' ? 'card' : 'account';
+          const balance = a.balance == null ? null : bankCents(a.balance);
+          accounts.push({ externalId: a.id, itemId: item.id, bank: item.bank, kind,
+            name: `${item.bank} · ${kind === 'card' ? 'Cartão' : String(a.name || 'Conta').slice(0, 80)} · ${String(a.number || '').slice(-4)}`,
+            // A card balance is the amount owed.
+            balanceCents: kind === 'card' && balance ? -balance : balance,
             balanceAt: a.updatedAt && Number.isFinite(Date.parse(a.updatedAt)) ? new Date(a.updatedAt) : null });
         }
       }

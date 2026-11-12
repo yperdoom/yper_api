@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 const { Schema } = mongoose;
 const owner = { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true };
 const link = new Schema({
-  user: owner, itemId: String, externalId: String, name: String, bank: String,
+  user: owner, itemId: String, externalId: String, name: String, bank: String, kind: { type: String, default: 'account' },
   account: { type: Schema.Types.ObjectId, ref: 'FinanceAccount', required: true },
   active: { type: Boolean, default: true }, lastAttempt: Date, lastSuccess: Date,
   error: String, lease: Date, balanceCents: Number, balanceAt: Date,

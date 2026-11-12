@@ -1,7 +1,7 @@
 import { BankLink, BankMovement, BankRule } from '../../models/yper/Banking.js';
 import { FinanceAccount } from '../../models/yper/Finance.js';
 import { personalBankConfig, pluggy, canRemember } from '../../services/pluggy.js';
-import { bankTransaction, ingestBankRows, decideMovement, bankCandidates, categorizeMovements } from '../../services/banking.js';
+import { bankTransaction, bankToday, ingestBankRows, decideMovement, bankCandidates, categorizeMovements } from '../../services/banking.js';
 import { httpError } from '../../lib/errors.js';
 
 const id = value => { if (typeof value !== 'string' || !/^[a-f\d]{24}$/i.test(value)) throw httpError(400, 'INVALID_VALUE', { field: 'id' }); return value; };
@@ -21,17 +21,22 @@ export default async function bankingRoutes(app) {
   // Discovery is explicit, not triggered on every page load.
   app.post('/discover', async r => ({ accounts: await provider.accounts(config(r.user.userId)) }));
   app.post('/links', async r => {
-    const user = r.user.userId; const accountId = id(r.body?.account);
+    const user = r.user.userId;
     const available = await provider.accounts(config(user));
-    const external = available.find(a => a.externalId === r.body.externalId);
+    const external = available.find(a => a.externalId === r.body?.externalId);
     if (!external) throw httpError(400, 'INVALID_VALUE', { field: 'externalId' });
+    const card = external.kind === 'card';
+    const accountId = card ? null : id(r.body.account);
     return bankTransaction(async session => {
-      const account = await FinanceAccount.findOne({ _id: accountId, user }).session(session);
+      // A card gets its own finance account; purchases are expenses there and bill payments are transfers into it.
+      const [account] = card
+        ? await FinanceAccount.create([{ user, name: `Cartão ${external.bank}`, kind: 'card', openingDate: bankToday(), openingBalanceCents: null }], { session })
+        : [await FinanceAccount.findOne({ _id: accountId, user }).session(session)];
       if (!account) throw httpError(404, 'NOT_FOUND');
       account.revision++; await account.save({ session });
-      const existing = await BankLink.findOne({ user, $or: [{ account: accountId }, { externalId: external.externalId }] }).session(session);
+      const existing = await BankLink.findOne({ user, $or: [{ account: account._id }, { externalId: external.externalId }] }).session(session);
       if (existing) throw httpError(409, 'BANK_ALREADY_LINKED');
-      const [link] = await BankLink.create([{ ...external, account: accountId, user }], { session });
+      const [link] = await BankLink.create([{ ...external, account: account._id, user }], { session });
       return { id: link._id };
     });
   });
@@ -55,7 +60,8 @@ export default async function bankingRoutes(app) {
       const accounts = available || await provider.accounts(items);
       const external = accounts.find(a => a.externalId === link.externalId && a.itemId === link.itemId);
       if (!external) throw httpError(502, 'BANK_DATA_INVALID');
-      const rows = await provider.movements(link.externalId);
+      // Card purchases are imported by the card flow; until then a card sync only refreshes its balance.
+      const rows = link.kind === 'card' ? [] : await provider.movements(link.externalId);
       const result = await ingestBankRows(link, rows, { automatic: true });
       await BankLink.updateOne({ _id: link._id, user, lease }, { $set: { lease: null, lastSuccess: new Date(), error: '',
         balanceCents: external.balanceCents, balanceAt: external.balanceAt } });

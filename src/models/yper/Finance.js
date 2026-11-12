@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const owner = { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true };
 const accountSchema = new mongoose.Schema({
   user: owner, name: { type: String, required: true },
-  kind: { type: String, enum: ['operational', 'reserve'], required: true },
+  kind: { type: String, enum: ['operational', 'reserve', 'card'], required: true },
   openingDate: { type: String, required: true },
   openingBalanceCents: { type: Number, default: null },
   revision: { type: Number, default: 0 },
