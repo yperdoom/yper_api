@@ -42,6 +42,7 @@ let failRead = false;
 const sourceAccounts = ['nubank', 'inter', 'mp'].map((itemId, index) => ({ itemId, externalId: `${itemId}-external`, bank: ['Nubank','Inter','Mercado Pago'][index], name: itemId, balanceCents: 100000, balanceAt: new Date() }));
 const provider = { accounts: async () => sourceAccounts, movements: async externalId => {
   if (failRead) throw new Error('synthetic-failure');
+  if (externalId === 'nubank-card') return [];
   return [normalizeMovement(raw('first', externalId), externalId)];
 } };
 const app = buildApp({ bankProvider: provider });
@@ -173,7 +174,7 @@ try {
   assert.equal((await call('POST', `/banking/movements/${out._id}/decision`, { action: 'undo', revision: 1 }, otherHeaders)).statusCode, 404);
   assert.equal((await call('POST', '/banking/categorize', { items: [{ id: String(out._id), revision: 1 }], category: 'Forbidden' }, otherHeaders)).statusCode, 404);
   assert.ok(await BankAudit.countDocuments() >= 8);
-  // A card is linked to its own finance account of kind card, created on demand; its sync only refreshes the balance for now.
+  // A card is linked to its own finance account of kind card, created on demand.
   failRead = false;
   sourceAccounts.push({ itemId: 'nubank', externalId: 'nubank-card', bank: 'Nubank', kind: 'card', name: 'Nubank · Cartão · 9876', balanceCents: -345692, balanceAt: new Date() });
   const cardLink = await call('POST', '/banking/links', { externalId: 'nubank-card' });

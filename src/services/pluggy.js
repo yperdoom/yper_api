@@ -40,6 +40,22 @@ export function normalizeMovement(raw, externalId) {
     amountCents: Math.abs(signed), direction: raw.type === 'DEBIT' ? 'expense' : 'income', bankStatus: raw.status };
 }
 
+// Card transactions use the opposite sign convention: purchases are positive DEBITs, payments and refunds negative CREDITs.
+export function normalizeCardMovement(raw, externalId) {
+  // Purchases abroad carry the charged BRL amount separately.
+  const foreign = raw.currencyCode !== 'BRL' && typeof raw.amountInAccountCurrency === 'number';
+  const amount = foreign ? Math.sign(raw.amount) * Math.round(Math.abs(raw.amountInAccountCurrency) * 100) / 100 : raw.amount;
+  const flipped = { ...raw, amount: typeof amount === 'number' ? -amount : amount, currencyCode: foreign ? 'BRL' : raw.currencyCode, paymentData: undefined };
+  const row = normalizeMovement(flipped, externalId);
+  const meta = raw.creditCardMetadata || {};
+  const installment = meta.paymentType === 'INSTALLMENT' && Number.isInteger(meta.installmentNumber) && Number.isInteger(meta.totalInstallments)
+    && meta.installmentNumber >= 1 && meta.installmentNumber <= meta.totalInstallments && meta.totalInstallments <= 600;
+  const purchaseDate = typeof meta.purchaseDate === 'string' ? meta.purchaseDate.slice(0, 10) : '';
+  return { ...row, card: true, billId: typeof meta.billId === 'string' ? meta.billId.slice(0, 100) : '',
+    installmentNumber: installment ? meta.installmentNumber : null, totalInstallments: installment ? meta.totalInstallments : null,
+    purchaseDate: validDate(purchaseDate) ? purchaseDate : '' };
+}
+
 // Fixed host, no user-supplied URL, and no credentials or upstream bodies in errors/logs.
 export function createPluggyProvider(fetcher = fetch) {
   async function request(path, key, payload) {
@@ -76,13 +92,14 @@ export function createPluggyProvider(fetcher = fetch) {
       }
       return accounts;
     },
-    async movements(externalId) {
+    async movements(externalId, kind = 'account') {
+      const normalize = kind === 'card' ? normalizeCardMovement : normalizeMovement;
       const key = await auth(); const rows = []; const cursors = new Set(); let after;
       do {
         const query = new URLSearchParams({ accountId: externalId, ...(after ? { after } : {}) });
         const page = await request(`/v2/transactions?${query}`, key);
         if (!Array.isArray(page.results) || !('next' in page)) throw httpError(502, 'BANK_DATA_INVALID');
-        rows.push(...page.results.map(r => normalizeMovement(r, externalId)));
+        rows.push(...page.results.map(r => normalize(r, externalId)));
         if (rows.length > 10000) throw httpError(502, 'BANK_DATA_INVALID');
         if (page.next === null) break;
         if (typeof page.next !== 'string' || !page.next.startsWith('?')) throw httpError(502, 'BANK_DATA_INVALID');

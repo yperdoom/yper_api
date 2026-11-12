@@ -30,8 +30,10 @@ function mentionsOwner(row) {
   return Boolean(owner) && plain(row.description || row.pattern).includes(owner);
 }
 function specialReason(row) {
-  if (row.sameOwner === true) return 'transfer';
   const description = row.pattern.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // On a card, only the bill payment credit needs reconciliation; refunds and fee reversals are regular credits.
+  if (row.card) return row.direction === 'income' && /\b(pagamento|pagto|pgto)\b/.test(description) ? 'special' : '';
+  if (row.sameOwner === true) return 'transfer';
   if (/FATURA|ESTORNO|RESGATE|APLIC|PORTABILIDADE|CREDITO_CONTRATADO/.test(row.operationType || '')
     || /\b(fatura|estorno|resgate|aplicacao|portabilidade)\b/.test(description)
     || /\b(pagamento|pagto|pgto)\b.*\bcartao\b/.test(description)) return 'special';
@@ -67,7 +69,9 @@ async function applyAutomatic(user, session) {
     if (!prepared.has(key)) prepared.set(key, await readyAccount(accountId, user, session));
   };
   const active = row => activeIds.some(id => String(id) === String(row.link));
-  const eligible = row => active(row) && row.state === 'review' && !row.manualHold && row.bankStatus === 'POSTED' && row.date <= bankToday();
+  // Future installments of a card purchase are known commitments and are planned before they post.
+  const eligible = row => active(row) && row.state === 'review' && !row.manualHold
+    && ((row.bankStatus === 'POSTED' && row.date <= bankToday()) || (row.card && row.installmentNumber > 1));
   for (const row of rows) {
     if (active(row) && row.state === 'changed' && ['new', 'auto'].includes(row.decision) && !row.peer
       && row.bankStatus === 'POSTED' && row.date <= bankToday() && !specialReason(row)) {
@@ -105,7 +109,11 @@ async function applyAutomatic(user, session) {
     const duplicate = rows.some(p => p !== row && p.state !== 'ignored' && String(p.account) === String(row.account)
       && p.direction === row.direction && p.pattern === row.pattern && (p.amountCents === row.amountCents ? near(p.date, row.date) : p.date === row.date)
       && !(p.transferReference && row.transferReference && p.transferReference !== row.transferReference)
-      && !(p.providerId && row.providerId && p.providerId !== row.providerId));
+      && !(p.providerId && row.providerId && p.providerId !== row.providerId)
+      && !(p.installmentNumber && row.installmentNumber && (p.amountCents !== row.amountCents || p.installmentNumber !== row.installmentNumber
+        || p.totalInstallments !== row.totalInstallments || p.purchaseDate !== row.purchaseDate))
+      // Card transactions carry stable IDs: only an identical charge on the same day is suspicious.
+      && !(row.card && (p.amountCents !== row.amountCents || p.date !== row.date)));
     // An own transfer still unpaired after 3 days comes from an account that is not connected (e.g. salary).
     const external = reason === 'transfer' && !peers.length && (row.sameOwner === true || mentionsOwner(row))
       && Date.parse(bankToday()) - Date.parse(row.date) > 3 * 86400000;
@@ -138,7 +146,7 @@ async function applyAutomatic(user, session) {
     if (rule) { row.category = rule.category; row.categorySource = 'rule'; row.rule = rule._id; }
     const entry = new Entry({ user, bankSource: String(row._id), description: row.description.slice(0, 160),
       type: row.direction, account: row.account, category: row.category || '', amountCents: row.amountCents, date: row.date,
-      overrides: [{ month: row.date.slice(0, 7), status: 'paid', paidDate: row.date }] });
+      overrides: row.bankStatus === 'POSTED' ? [{ month: row.date.slice(0, 7), status: 'paid', paidDate: row.date }] : [] });
     entries.push(entry); row.entry = entry._id; row.state = 'accepted'; row.decision = 'auto'; row.reviewReason = ''; row.revision++;
     note(row, 'auto-import', { entry: entry._id }); stats.imported++;
   }

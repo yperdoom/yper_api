@@ -4,7 +4,7 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { BankLink, BankMovement, BankRule, BankAudit, BankSyncGuard } from '../src/models/yper/Banking.js';
 import { FinanceAccount, FinanceEntry } from '../src/models/yper/Finance.js';
 import { ingestBankRows, categorizeMovements, decideMovement, bankToday } from '../src/services/banking.js';
-import { normalizeMovement } from '../src/services/pluggy.js';
+import { normalizeMovement, normalizeCardMovement } from '../src/services/pluggy.js';
 import { projectFinance } from '../src/services/financeProjection.js';
 
 const mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
@@ -128,5 +128,43 @@ try {
   assert.equal(await BankAudit.countDocuments({ user, action: 'auto-import', movement: (await row('bulk-0'))._id }), 1);
   assert.ok(firstSync < 40, `first sync used ${firstSync} database operations`);
   assert.ok(operations < 40, `repeat sync used ${operations} database operations`);
+  // Card purchases (DEBIT positive in the provider) are expenses on the card account, each installment on its own date.
+  const cardAccount = await FinanceAccount.create({ user, name: 'Cartão Nubank', kind: 'card', openingDate: today, openingBalanceCents: null });
+  const cardLink = await BankLink.create({ user, account: cardAccount._id, externalId: 'card-external', itemId: 'item-0', bank: 'Nubank', kind: 'card' });
+  const future = new Date(Date.parse(`${today}T12:00:00Z`) + 31 * 86400000).toISOString().slice(0, 10);
+  const purchaseDate = `${today}T10:00:00.000Z`;
+  const card = (id, description, amount, extra = {}) => normalizeCardMovement({ id, accountId: 'card-external', description, amount,
+    date: `${today}T00:00:00.000Z`, type: amount > 0 ? 'DEBIT' : 'CREDIT', status: 'POSTED', currencyCode: 'BRL', ...extra }, 'card-external');
+  const installment = (n, date, status) => card(`pneu-${n}`, 'Pneu Store', 316.44, { date: `${date}T00:00:00.000Z`, status,
+    creditCardMetadata: { paymentType: 'INSTALLMENT', installmentNumber: n, totalInstallments: 10, purchaseDate, billId: n === 1 ? 'bill-1' : undefined } });
+  assert.throws(() => card('bad', 'Compra', -10, { type: 'DEBIT' }), 'card sign convention is enforced');
+  assert.equal(card('usd', 'Discord* Nitromonthly', 4.66, { currencyCode: 'USD', amountInAccountCurrency: 25.88 }).amountCents, 2588, 'foreign purchases use the BRL amount');
+  const cardResult = await ingestBankRows(cardLink, [card('coffee', 'Bar da Su', 116, { creditCardMetadata: { paymentType: 'SINGLE', billId: 'bill-1' } }),
+    installment(1, today, 'POSTED'), installment(2, future, 'PENDING'),
+    card('payment', 'Pagamento recebido', -3456.92), card('refund', 'Estorno de compra', -50)], { automatic: true });
+  const coffee = await row('coffee');
+  assert.equal(coffee.state, 'accepted'); assert.equal(coffee.billId, 'bill-1');
+  const coffeeEntry = await FinanceEntry.findById(coffee.entry);
+  assert.equal(coffeeEntry.type, 'expense'); assert.equal(String(coffeeEntry.account), String(cardAccount._id)); assert.equal(coffeeEntry.amountCents, 11600);
+  const [first, second] = [await row('pneu-1'), await row('pneu-2')];
+  assert.equal(first.state, 'accepted'); assert.equal(second.state, 'accepted', 'future installments of a purchase are planned');
+  assert.equal(second.installmentNumber, 2); assert.equal(second.totalInstallments, 10);
+  assert.equal((await FinanceEntry.findById(second.entry)).date, future);
+  assert.equal((await row('payment')).reviewReason, 'special', 'bill payment credit waits for reconciliation');
+  assert.equal((await FinanceEntry.findById((await row('refund')).entry)).type, 'income');
+  assert.equal(cardResult.imported, 4);
+  // Same description and amount on the same day are distinct installments, not duplicates.
+  await ingestBankRows(cardLink, [card('mp-a', 'MERCADOLIVRE*MERC', 183.33, { creditCardMetadata: { paymentType: 'INSTALLMENT', installmentNumber: 3, totalInstallments: 15, purchaseDate } }),
+    card('mp-b', 'MERCADOLIVRE*MERC', 183.33, { creditCardMetadata: { paymentType: 'INSTALLMENT', installmentNumber: 4, totalInstallments: 15, purchaseDate: `${yesterday}T10:00:00.000Z` } })], { automatic: true });
+  assert.equal((await row('mp-a')).state, 'accepted'); assert.equal((await row('mp-b')).state, 'accepted');
+  // Two purchases from the same store on the same day: same installment number, different amount and plan.
+  await ingestBankRows(cardLink, [card('ml-a', 'MERCADOLIVRE*KRPM', 183.33, { creditCardMetadata: { paymentType: 'INSTALLMENT', installmentNumber: 2, totalInstallments: 15, purchaseDate } }),
+    card('ml-b', 'MERCADOLIVRE*KRPM', 39.33, { creditCardMetadata: { paymentType: 'INSTALLMENT', installmentNumber: 2, totalInstallments: 9, purchaseDate } })], { automatic: true });
+  assert.equal((await row('ml-a')).state, 'accepted'); assert.equal((await row('ml-b')).state, 'accepted');
+  await ingestBankRows(cardLink, [card('shell-a', 'Shell Box', 197.93), card('shell-b', 'Shell Box', 285.58), card('one-off', 'MERCADOLIVRE*KRPM', 119.90)], { automatic: true });
+  assert.equal((await row('shell-a')).state, 'accepted', 'different card amounts on the same day are distinct purchases');
+  assert.equal((await row('shell-b')).state, 'accepted'); assert.equal((await row('one-off')).state, 'accepted');
+  await ingestBankRows(cardLink, [card('apple-a', 'Apple.Com/Bill', 2.9), card('apple-b', 'Apple.Com/Bill', 2.9)], { automatic: true });
+  assert.equal((await row('apple-a')).reviewReason, 'duplicate', 'identical card charges on the same day are still reviewed');
   console.log('Banking automation: import, corrections, durable undo, categories, rollback, ownership, transfers, duplicates and concurrency passed.');
 } finally { await mongoose.disconnect(); await mongo.stop(); }

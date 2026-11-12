@@ -14,6 +14,8 @@ const movement = new Schema({
   aliases: [String], providerId: String, description: String, pattern: String,
   date: String, amountCents: Number, direction: String, bankStatus: String,
   operationType: String, transferReference: String, sameOwner: { type: Boolean, default: null },
+  card: { type: Boolean, default: false }, billId: String, purchaseDate: String,
+  installmentNumber: { type: Number, default: null }, totalInstallments: { type: Number, default: null },
   manualHold: { type: Boolean, default: false }, reviewReason: String,
   category: { type: String, default: '' }, categorySource: String, rule: Schema.Types.ObjectId,
   state: { type: String, enum: ['review', 'accepted', 'ignored', 'changed'], default: 'review' },

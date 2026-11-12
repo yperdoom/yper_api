@@ -60,8 +60,7 @@ export default async function bankingRoutes(app) {
       const accounts = available || await provider.accounts(items);
       const external = accounts.find(a => a.externalId === link.externalId && a.itemId === link.itemId);
       if (!external) throw httpError(502, 'BANK_DATA_INVALID');
-      // Card purchases are imported by the card flow; until then a card sync only refreshes its balance.
-      const rows = link.kind === 'card' ? [] : await provider.movements(link.externalId);
+      const rows = await provider.movements(link.externalId, link.kind);
       const result = await ingestBankRows(link, rows, { automatic: true });
       await BankLink.updateOne({ _id: link._id, user, lease }, { $set: { lease: null, lastSuccess: new Date(), error: '',
         balanceCents: external.balanceCents, balanceAt: external.balanceAt } });
