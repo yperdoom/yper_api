@@ -44,6 +44,8 @@ function specialReason(row) {
   }
   return '';
 }
+// A bill payment has two sides: the debit in a bank account and the payment credit on the card.
+const billPayment = row => specialReason(row) === 'special' && (row.card ? row.direction === 'income' : row.direction === 'expense');
 const near = (a, b) => Math.abs(Date.parse(a) - Date.parse(b)) <= 3 * 86400000;
 function candidateOccurrences(entry, row) {
   const month = row.date.slice(0, 7);
@@ -98,7 +100,9 @@ async function applyAutomatic(user, session) {
     // A common reference + equal ownership on both legs is stronger than value/date similarity.
     const opposite = p => p !== row && eligible(p) && p.direction !== row.direction
       && String(p.account) !== String(row.account) && p.amountCents === row.amountCents;
-    const peers = reason !== 'transfer' ? []
+    const peers = reason === 'special' && billPayment(row)
+      ? rows.filter(p => opposite(p) && billPayment(p) && Boolean(p.card) !== Boolean(row.card) && near(p.date, row.date))
+      : reason !== 'transfer' ? []
       : row.sameOwner === true && row.transferReference
         ? rows.filter(p => opposite(p) && p.sameOwner === true && p.transferReference === row.transferReference && p.date === row.date)
         : mentionsOwner(row) ? rows.filter(p => opposite(p) && mentionsOwner(p) && Math.abs(Date.parse(p.date) - Date.parse(row.date)) <= 86400000) : [];

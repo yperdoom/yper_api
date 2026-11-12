@@ -166,5 +166,14 @@ try {
   assert.equal((await row('shell-b')).state, 'accepted'); assert.equal((await row('one-off')).state, 'accepted');
   await ingestBankRows(cardLink, [card('apple-a', 'Apple.Com/Bill', 2.9), card('apple-b', 'Apple.Com/Bill', 2.9)], { automatic: true });
   assert.equal((await row('apple-a')).reviewReason, 'duplicate', 'identical card charges on the same day are still reviewed');
+  // Paying the bill from a connected account is a transfer into the card, never a second expense.
+  const billPay = await sync(0, [source('bill-pay', 'Pagamento de fatura', -3456.92, { date: yesterday })]);
+  assert.equal(billPay.transfers, 1);
+  const [paid, received] = [await row('bill-pay'), await row('payment')];
+  assert.equal(paid.decision, 'transfer'); assert.equal(received.decision, 'transfer');
+  const billEntry = await FinanceEntry.findById(paid.entry);
+  assert.equal(billEntry.type, 'transfer'); assert.equal(String(billEntry.toAccount), String(cardAccount._id)); assert.equal(billEntry.amountCents, 345692);
+  await sync(0, [source('other-special', 'Pagamento de fatura', -999.99)]);
+  assert.equal((await row('other-special')).reviewReason, 'special', 'a bill payment without its card side stays in review');
   console.log('Banking automation: import, corrections, durable undo, categories, rollback, ownership, transfers, duplicates and concurrency passed.');
 } finally { await mongoose.disconnect(); await mongo.stop(); }
