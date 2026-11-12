@@ -92,5 +92,22 @@ try {
   const projection = projectFinance({ accounts: accounts.map(a => a.toObject()), entries: await FinanceEntry.find({ user }).lean(), estimates: [], from: today.slice(0, 7), count: 3, today });
   assert.equal(projection.months[0].incomeCents, 500000, 'own transfer must not inflate revenue');
   assert.ok(await BankAudit.exists({ user, action: 'auto-update' }));
+  // With the owner's name configured, Pix to third parties is a normal movement; only Pix naming the owner is a transfer.
+  await sync(2, [source('held-pix', 'Pix enviado Loja Y', -33)]);
+  assert.equal((await row('held-pix')).reviewReason, 'transfer', 'without the owner name, unknown Pix stays held');
+  process.env.OPEN_FINANCE_OWNER_NAME = 'Pedro Henrique Antunes Pinto';
+  const yesterday = new Date(Date.parse(`${today}T12:00:00Z`) - 86400000).toISOString().slice(0, 10);
+  await sync(2, [source('pix-shop', 'Transferência enviada pelo Pix|AGROPECUARIA PRADO LTDA', -40),
+    source('own-out', 'Pix enviado Pedro Henrique Antunes Pinto', -70, { date: yesterday })]);
+  assert.equal((await row('pix-shop')).state, 'accepted');
+  assert.equal((await FinanceEntry.findById((await row('pix-shop')).entry)).type, 'expense');
+  assert.equal((await row('held-pix')).state, 'accepted', 'held third-party Pix is re-evaluated on the next sync');
+  assert.equal((await row('own-out')).reviewReason, 'transfer', 'own Pix waits for the other leg');
+  await sync(1, [source('own-in', 'Transferência Recebida|PEDRO HENRIQUE ANTUNES PINTO', 70)]);
+  const [ownOut, ownIn] = [await row('own-out'), await row('own-in')];
+  assert.equal(ownOut.decision, 'transfer'); assert.equal(ownIn.decision, 'transfer');
+  assert.equal(String(ownOut.entry), String(ownIn.entry), 'legs named after the owner pair within one day');
+  assert.equal((await FinanceEntry.findById(ownOut.entry)).type, 'transfer');
+  delete process.env.OPEN_FINANCE_OWNER_NAME;
   console.log('Banking automation: import, corrections, durable undo, categories, rollback, ownership, transfers, duplicates and concurrency passed.');
 } finally { await mongoose.disconnect(); await mongo.stop(); }

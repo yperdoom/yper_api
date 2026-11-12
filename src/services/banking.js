@@ -24,6 +24,11 @@ async function ensureGuard(user) {
   try { await BankSyncGuard.updateOne({ user }, { $setOnInsert: { revision: 0 } }, { upsert: true }); }
   catch (e) { if (e.code !== 11000) throw e; }
 }
+const plain = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+function mentionsOwner(row) {
+  const owner = plain(process.env.OPEN_FINANCE_OWNER_NAME || '');
+  return Boolean(owner) && plain(row.description || row.pattern).includes(owner);
+}
 function specialReason(row) {
   if (row.sameOwner === true) return 'transfer';
   const description = row.pattern.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -31,7 +36,10 @@ function specialReason(row) {
     || /\b(fatura|estorno|resgate|aplicacao|portabilidade)\b/.test(description)
     || /\b(pagamento|pagto|pgto)\b.*\bcartao\b/.test(description)) return 'special';
   if (row.sameOwner !== false && (/^(PIX|TED|DOC|TRANSFERENCIA)/.test(row.operationType || '')
-    || /\b(pix|ted|doc|transferencia)\b/.test(description))) return 'transfer';
+    || /\b(pix|ted|doc|transferencia)\b/.test(description))) {
+    // Without ownership data, a configured owner name separates own transfers from payments to third parties.
+    return !process.env.OPEN_FINANCE_OWNER_NAME || mentionsOwner(row) ? 'transfer' : '';
+  }
   return '';
 }
 const near = (a, b) => Math.abs(Date.parse(a) - Date.parse(b)) <= 3 * 86400000;
@@ -78,9 +86,12 @@ async function applyAutomatic(user, session) {
     if (!eligible(row)) continue;
     const reason = specialReason(row);
     // A common reference + equal ownership on both legs is stronger than value/date similarity.
-    const peers = reason === 'transfer' && row.sameOwner === true && row.transferReference
-      ? rows.filter(p => p !== row && eligible(p) && p.sameOwner === true && p.transferReference === row.transferReference
-        && p.direction !== row.direction && String(p.account) !== String(row.account) && p.amountCents === row.amountCents && p.date === row.date) : [];
+    const opposite = p => p !== row && eligible(p) && p.direction !== row.direction
+      && String(p.account) !== String(row.account) && p.amountCents === row.amountCents;
+    const peers = reason !== 'transfer' ? []
+      : row.sameOwner === true && row.transferReference
+        ? rows.filter(p => opposite(p) && p.sameOwner === true && p.transferReference === row.transferReference && p.date === row.date)
+        : mentionsOwner(row) ? rows.filter(p => opposite(p) && mentionsOwner(p) && Math.abs(Date.parse(p.date) - Date.parse(row.date)) <= 86400000) : [];
     const manualMatches = entries.filter(e => !e.bankSource && (String(e.account) === String(row.account) || String(e.toAccount) === String(row.account)))
       .flatMap(e => candidateOccurrences(e, row).map(item => ({ entry: e, item })))
       .filter(({ entry: e, item }) => item && item.status !== 'cancelled' && (e.type === row.direction || e.type === 'transfer')
